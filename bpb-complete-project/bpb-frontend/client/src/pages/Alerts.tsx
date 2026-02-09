@@ -1,18 +1,19 @@
 /**
  * Alerts Page - System alerts and notifications
  * Design: Command Center dark theme with teal accents
+ * Features: Mark read, Mark all read, Delete, Severity filter, Package filter
  */
 import { useState } from "react";
 import {
   Bell, AlertTriangle, CheckCircle2, Info, XCircle,
-  Activity, Eye, Trash2
+  Activity, Eye, Trash2, CheckCheck, Filter
 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import DashboardLayout from "@/components/DashboardLayout";
-import { alertsApi } from "@/lib/api";
+import { alertsApi, packagesApi } from "@/lib/api";
 import { useApi } from "@/hooks/useApi";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
@@ -20,17 +21,57 @@ import { motion } from "framer-motion";
 const EMPTY_STATE = "https://private-us-east-1.manuscdn.com/sessionFile/FrAGzK0RSeaSLJYgAvdIsd/sandbox/ZCprEzMGxdlqKJJZHbcR1g-img-3_1770591773000_na1fn_YnBiLWVtcHR5LXN0YXRl.png?x-oss-process=image/resize,w_1920,h_1920/format,webp/quality,q_80&Expires=1798761600&Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly9wcml2YXRlLXVzLWVhc3QtMS5tYW51c2Nkbi5jb20vc2Vzc2lvbkZpbGUvRnJBR3pLMFJTZWFTTEpZZ0F2ZElzZC9zYW5kYm94L1pDcHJFek1HeGRscUtKSlpIYmNSMWctaW1nLTNfMTc3MDU5MTc3MzAwMF9uYTFmbl9ZbkJpTFdWdGNIUjVMWE4wWVhSbC5wbmc~eC1vc3MtcHJvY2Vzcz1pbWFnZS9yZXNpemUsd18xOTIwLGhfMTkyMC9mb3JtYXQsd2VicC9xdWFsaXR5LHFfODAiLCJDb25kaXRpb24iOnsiRGF0ZUxlc3NUaGFuIjp7IkFXUzpFcG9jaFRpbWUiOjE3OTg3NjE2MDB9fX1dfQ__&Key-Pair-Id=K2HSFNDJXOU9YS&Signature=RDM2h9Cti4Js31a9BIYVLWFcQbXZtc57R-RlsY3GM9a558-eMMDKEdUk~-todBCkHr-3L7DO4rXVCRSxYcxyMttq-ohIt7ztei1WPX4B-i3ENdxi9ZzZ6GE3RaHw498xlbR6P306m6nnrA78ku~e3GoX03W7U0X10eRwDVpCAO76n4S~MB-cHx6ofqHyRKklGmuj37MAjV73CR-BIhZjd7MxYB2MP8KLB-NgiWj7g8A6gnwQ1ajpLzX7bHOBpqCE2bAUJa3R~Jo~0jBRV7AlWoAMpq0qIHL4Szq-dMrOr~nO9-hVJ6ndIS~CqclZ-GAxjXvsp~VyNgaSsgLAYFiyfA__";
 
 export default function Alerts() {
-  const [filter, setFilter] = useState("all");
+  const [readFilter, setReadFilter] = useState("all");
+  const [severityFilter, setSeverityFilter] = useState("all");
+  const [packageFilter, setPackageFilter] = useState("all");
+
+  const { data: packages } = useApi(() => packagesApi.list(), []);
+
   const { data: alerts, loading, refetch } = useApi(
-    () => alertsApi.list(undefined, filter === "unread"),
-    [filter]
+    () => alertsApi.list(
+      packageFilter !== "all" ? packageFilter : undefined,
+      readFilter === "unread"
+    ),
+    [readFilter, packageFilter]
   );
+
+  const { data: countData, refetch: refetchCount } = useApi(() => alertsApi.count(), []);
+
+  // Apply severity filter client-side (backend also supports it)
+  const filteredAlerts = (alerts || []).filter((a: any) => {
+    if (severityFilter !== "all" && a.severity !== severityFilter) return false;
+    return true;
+  });
 
   const handleMarkRead = async (id: string) => {
     try {
       await alertsApi.markRead(id);
       toast.success("Alert marked as read");
       refetch();
+      refetchCount();
+    } catch (err: any) {
+      toast.error(err.message);
+    }
+  };
+
+  const handleMarkAllRead = async () => {
+    try {
+      const pkg = packageFilter !== "all" ? packageFilter : undefined;
+      await alertsApi.markAllRead(pkg);
+      toast.success("All alerts marked as read");
+      refetch();
+      refetchCount();
+    } catch (err: any) {
+      toast.error(err.message);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    try {
+      await fetch(`/api/v1/alerts/${id}`, { method: "DELETE" });
+      toast.success("Alert deleted");
+      refetch();
+      refetchCount();
     } catch (err: any) {
       toast.error(err.message);
     }
@@ -54,27 +95,75 @@ export default function Alerts() {
     }
   };
 
+  const unreadCount = countData?.unread_count || 0;
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between flex-wrap gap-3">
           <div>
             <h1 className="text-xl font-bold font-mono text-foreground flex items-center gap-2">
               <Bell className="h-5 w-5 text-primary" />
               Alerts
+              {unreadCount > 0 && (
+                <Badge className="bg-coral/15 text-coral border-coral/30 text-xs ml-2">
+                  {unreadCount} unread
+                </Badge>
+              )}
             </h1>
             <p className="text-sm text-muted-foreground mt-1">
               System alerts, warnings, and block risk notifications
             </p>
           </div>
-          <Select value={filter} onValueChange={setFilter}>
-            <SelectTrigger className="w-[140px] bg-secondary/30">
+          <div className="flex items-center gap-2">
+            {unreadCount > 0 && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleMarkAllRead}
+                className="text-xs gap-1 border-primary/30 text-primary hover:bg-primary/10"
+              >
+                <CheckCheck className="h-3.5 w-3.5" /> Mark All Read
+              </Button>
+            )}
+          </div>
+        </div>
+
+        {/* Filters */}
+        <div className="flex items-center gap-3 flex-wrap">
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <Filter className="h-3.5 w-3.5" /> Filters:
+          </div>
+          <Select value={readFilter} onValueChange={setReadFilter}>
+            <SelectTrigger className="w-[130px] bg-secondary/30 h-8 text-xs">
               <SelectValue />
             </SelectTrigger>
             <SelectContent className="bg-popover border-border">
               <SelectItem value="all">All Alerts</SelectItem>
               <SelectItem value="unread">Unread Only</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={severityFilter} onValueChange={setSeverityFilter}>
+            <SelectTrigger className="w-[130px] bg-secondary/30 h-8 text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent className="bg-popover border-border">
+              <SelectItem value="all">All Severity</SelectItem>
+              <SelectItem value="critical">Critical</SelectItem>
+              <SelectItem value="warning">Warning</SelectItem>
+              <SelectItem value="info">Info</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={packageFilter} onValueChange={setPackageFilter}>
+            <SelectTrigger className="w-[160px] bg-secondary/30 h-8 text-xs">
+              <SelectValue placeholder="All Packages" />
+            </SelectTrigger>
+            <SelectContent className="bg-popover border-border">
+              <SelectItem value="all">All Packages</SelectItem>
+              {(packages || []).map((pkg: any) => (
+                <SelectItem key={pkg.id} value={pkg.id}>{pkg.name}</SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </div>
@@ -84,11 +173,11 @@ export default function Alerts() {
           <div className="flex items-center justify-center py-20">
             <Activity className="h-6 w-6 text-primary animate-spin" />
           </div>
-        ) : alerts && alerts.length > 0 ? (
+        ) : filteredAlerts.length > 0 ? (
           <div className="space-y-3">
-            {alerts.map((alert: any, i: number) => (
+            {filteredAlerts.map((alert: any, i: number) => (
               <motion.div key={alert.id} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.03 }}>
-                <Card className={`border-glow-hover bg-card/80 transition-all ${!alert.read_at ? "border-l-2 border-l-primary" : ""}`}>
+                <Card className={`border-glow-hover bg-card/80 transition-all ${!alert.is_read ? "border-l-2 border-l-primary" : ""}`}>
                   <CardContent className="p-4">
                     <div className="flex items-start gap-4">
                       <div className="mt-0.5">{severityIcon(alert.severity)}</div>
@@ -98,7 +187,12 @@ export default function Alerts() {
                           <Badge className={`text-[10px] ${severityColor(alert.severity)}`}>
                             {alert.severity}
                           </Badge>
-                          {!alert.read_at && (
+                          {alert.alert_type && (
+                            <Badge className="bg-secondary text-muted-foreground text-[10px]">
+                              {alert.alert_type}
+                            </Badge>
+                          )}
+                          {!alert.is_read && (
                             <Badge className="bg-primary/15 text-primary border-primary/30 text-[10px]">New</Badge>
                           )}
                         </div>
@@ -107,11 +201,16 @@ export default function Alerts() {
                           {alert.created_at ? new Date(alert.created_at).toLocaleString() : "—"}
                         </p>
                       </div>
-                      {!alert.read_at && (
-                        <Button variant="ghost" size="sm" onClick={() => handleMarkRead(alert.id)} className="text-xs text-muted-foreground hover:text-primary gap-1">
-                          <Eye className="h-3.5 w-3.5" /> Mark Read
+                      <div className="flex items-center gap-1">
+                        {!alert.is_read && (
+                          <Button variant="ghost" size="sm" onClick={() => handleMarkRead(alert.id)} className="text-xs text-muted-foreground hover:text-primary gap-1 h-7 px-2">
+                            <Eye className="h-3.5 w-3.5" /> Read
+                          </Button>
+                        )}
+                        <Button variant="ghost" size="sm" onClick={() => handleDelete(alert.id)} className="text-xs text-muted-foreground hover:text-coral gap-1 h-7 px-2">
+                          <Trash2 className="h-3.5 w-3.5" />
                         </Button>
-                      )}
+                      </div>
                     </div>
                   </CardContent>
                 </Card>

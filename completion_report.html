@@ -1,0 +1,744 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BPB Completion Plan — Interactive Report</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #0a0e1a;
+    --card: #111827;
+    --border: #1e293b;
+    --primary: #00d4aa;
+    --primary-dim: rgba(0,212,170,0.15);
+    --text: #e2e8f0;
+    --muted: #94a3b8;
+    --coral: #ef4444;
+    --amber: #f59e0b;
+    --cyan: #0ea5e9;
+    --emerald: #10b981;
+    --purple: #a78bfa;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    min-height: 100vh;
+  }
+  .container { max-width: 1200px; margin: 0 auto; padding: 2rem 1.5rem; }
+
+  /* Hero */
+  .hero {
+    background: linear-gradient(135deg, rgba(0,212,170,0.08) 0%, rgba(14,165,233,0.06) 50%, rgba(0,212,170,0.03) 100%);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 3rem 2.5rem;
+    margin-bottom: 2rem;
+    position: relative;
+    overflow: hidden;
+  }
+  .hero::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    right: -20%;
+    width: 400px;
+    height: 400px;
+    background: radial-gradient(circle, rgba(0,212,170,0.08) 0%, transparent 70%);
+    border-radius: 50%;
+  }
+  .hero h1 {
+    font-size: 2rem;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    margin-bottom: 0.5rem;
+    position: relative;
+  }
+  .hero h1 span { color: var(--primary); }
+  .hero p { color: var(--muted); font-size: 0.95rem; max-width: 600px; position: relative; }
+  .hero .badge {
+    display: inline-block;
+    background: var(--primary-dim);
+    color: var(--primary);
+    border: 1px solid rgba(0,212,170,0.3);
+    padding: 0.25rem 0.75rem;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    margin-bottom: 1rem;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+
+  /* Summary Grid */
+  .summary-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+    margin-bottom: 2rem;
+  }
+  .stat-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.5rem;
+    text-align: center;
+    transition: all 0.2s;
+  }
+  .stat-card:hover {
+    border-color: var(--primary);
+    box-shadow: 0 0 20px rgba(0,212,170,0.1);
+    transform: translateY(-2px);
+  }
+  .stat-card .value {
+    font-size: 2.2rem;
+    font-weight: 800;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .stat-card .label {
+    font-size: 0.75rem;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-top: 0.25rem;
+  }
+
+  /* Section */
+  .section {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.5rem 2rem;
+    margin-bottom: 1.5rem;
+  }
+  .section h2 {
+    font-size: 1.15rem;
+    font-weight: 700;
+    margin-bottom: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .section h2 .icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    font-size: 0.85rem;
+  }
+
+  /* Tables */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.85rem;
+  }
+  th {
+    text-align: left;
+    padding: 0.75rem 1rem;
+    background: rgba(0,212,170,0.05);
+    border-bottom: 1px solid var(--border);
+    font-weight: 600;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+  }
+  td {
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid rgba(30,41,59,0.5);
+    vertical-align: top;
+  }
+  tr:hover td { background: rgba(0,212,170,0.03); }
+
+  /* Status badges */
+  .status {
+    display: inline-block;
+    padding: 0.2rem 0.6rem;
+    border-radius: 6px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+  }
+  .status-done { background: rgba(16,185,129,0.15); color: var(--emerald); border: 1px solid rgba(16,185,129,0.3); }
+  .status-partial { background: rgba(245,158,11,0.15); color: var(--amber); border: 1px solid rgba(245,158,11,0.3); }
+  .status-missing { background: rgba(239,68,68,0.15); color: var(--coral); border: 1px solid rgba(239,68,68,0.3); }
+  .status-high { background: rgba(239,68,68,0.15); color: var(--coral); border: 1px solid rgba(239,68,68,0.3); }
+  .status-medium { background: rgba(245,158,11,0.15); color: var(--amber); border: 1px solid rgba(245,158,11,0.3); }
+  .status-low { background: rgba(14,165,233,0.15); color: var(--cyan); border: 1px solid rgba(14,165,233,0.3); }
+
+  /* Charts */
+  .chart-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+  }
+  .chart-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.5rem;
+  }
+  .chart-card h3 {
+    font-size: 0.9rem;
+    font-weight: 600;
+    margin-bottom: 1rem;
+    color: var(--muted);
+  }
+  .chart-container { position: relative; height: 280px; }
+
+  /* Steps timeline */
+  .timeline { position: relative; padding-left: 2rem; }
+  .timeline::before {
+    content: '';
+    position: absolute;
+    left: 11px;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: var(--border);
+  }
+  .step {
+    position: relative;
+    margin-bottom: 1.25rem;
+    padding: 1rem 1.25rem;
+    background: rgba(0,212,170,0.03);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    transition: all 0.2s;
+    cursor: pointer;
+  }
+  .step:hover {
+    border-color: rgba(0,212,170,0.4);
+    background: rgba(0,212,170,0.06);
+  }
+  .step::before {
+    content: attr(data-step);
+    position: absolute;
+    left: -2.35rem;
+    top: 1rem;
+    width: 24px;
+    height: 24px;
+    background: var(--primary);
+    color: var(--bg);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.7rem;
+    font-weight: 800;
+  }
+  .step .step-title {
+    font-weight: 700;
+    font-size: 0.9rem;
+    margin-bottom: 0.25rem;
+  }
+  .step .step-desc {
+    font-size: 0.8rem;
+    color: var(--muted);
+  }
+  .step .step-tags { margin-top: 0.5rem; display: flex; gap: 0.4rem; flex-wrap: wrap; }
+
+  /* Tabs */
+  .tabs {
+    display: flex;
+    gap: 0.25rem;
+    margin-bottom: 1.25rem;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 0;
+  }
+  .tab {
+    padding: 0.6rem 1.2rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--muted);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: all 0.2s;
+    background: none;
+    border-top: none;
+    border-left: none;
+    border-right: none;
+  }
+  .tab:hover { color: var(--text); }
+  .tab.active { color: var(--primary); border-bottom-color: var(--primary); }
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+
+  /* Filter */
+  .filter-bar {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+    flex-wrap: wrap;
+  }
+  .filter-btn {
+    padding: 0.35rem 0.85rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .filter-btn:hover, .filter-btn.active {
+    border-color: var(--primary);
+    color: var(--primary);
+    background: var(--primary-dim);
+  }
+
+  /* Responsive */
+  @media (max-width: 768px) {
+    .chart-grid { grid-template-columns: 1fr; }
+    .summary-grid { grid-template-columns: repeat(2, 1fr); }
+    .hero { padding: 2rem 1.5rem; }
+    .hero h1 { font-size: 1.5rem; }
+  }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: var(--bg); }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--primary); }
+
+  /* No-change section */
+  .no-change-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    gap: 0.75rem;
+  }
+  .no-change-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.6rem 0.8rem;
+    background: rgba(16,185,129,0.05);
+    border: 1px solid rgba(16,185,129,0.15);
+    border-radius: 8px;
+    font-size: 0.8rem;
+    color: var(--emerald);
+  }
+  .no-change-item::before {
+    content: '✓';
+    font-weight: 800;
+    font-size: 0.85rem;
+  }
+
+  .footer {
+    text-align: center;
+    padding: 2rem;
+    color: var(--muted);
+    font-size: 0.75rem;
+    border-top: 1px solid var(--border);
+    margin-top: 2rem;
+  }
+</style>
+</head>
+<body>
+
+<div class="container">
+
+  <!-- Hero -->
+  <div class="hero">
+    <div class="badge">Completion Plan Report</div>
+    <h1>Block Preventer Bridge — <span>Full Analysis</span></h1>
+    <p>Comprehensive analysis of all backend services, frontend pages, and API connections. This interactive report details every completed, partially completed, and missing feature across the entire project.</p>
+  </div>
+
+  <!-- Summary Stats -->
+  <div class="summary-grid">
+    <div class="stat-card">
+      <div class="value" style="color:var(--emerald)">17</div>
+      <div class="label">Backend Components Done</div>
+    </div>
+    <div class="stat-card">
+      <div class="value" style="color:var(--amber)">4</div>
+      <div class="label">Partially Implemented</div>
+    </div>
+    <div class="stat-card">
+      <div class="value" style="color:var(--coral)">4</div>
+      <div class="label">Missing / Stub Only</div>
+    </div>
+    <div class="stat-card">
+      <div class="value" style="color:var(--primary)">11</div>
+      <div class="label">Implementation Steps</div>
+    </div>
+    <div class="stat-card">
+      <div class="value" style="color:var(--cyan)">8</div>
+      <div class="label">Frontend Pages</div>
+    </div>
+  </div>
+
+  <!-- Charts -->
+  <div class="chart-grid">
+    <div class="chart-card">
+      <h3>Backend Feature Status Distribution</h3>
+      <div class="chart-container"><canvas id="backendChart"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <h3>Frontend Feature Status Distribution</h3>
+      <div class="chart-container"><canvas id="frontendChart"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <h3>Implementation Priority Breakdown</h3>
+      <div class="chart-container"><canvas id="priorityChart"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <h3>Estimated Effort by Area</h3>
+      <div class="chart-container"><canvas id="effortChart"></canvas></div>
+    </div>
+  </div>
+
+  <!-- Tabs Section -->
+  <div class="section">
+    <div class="tabs">
+      <button class="tab active" onclick="switchTab('backend')">Backend Analysis</button>
+      <button class="tab" onclick="switchTab('frontend')">Frontend Analysis</button>
+      <button class="tab" onclick="switchTab('plan')">Implementation Plan</button>
+      <button class="tab" onclick="switchTab('files')">Files Affected</button>
+      <button class="tab" onclick="switchTab('safe')">Unchanged Items</button>
+    </div>
+
+    <!-- Backend Tab -->
+    <div id="tab-backend" class="tab-content active">
+      <div class="filter-bar">
+        <button class="filter-btn active" onclick="filterTable('backend-table','all',this)">All</button>
+        <button class="filter-btn" onclick="filterTable('backend-table','missing',this)">Missing</button>
+        <button class="filter-btn" onclick="filterTable('backend-table','partial',this)">Partial</button>
+        <button class="filter-btn" onclick="filterTable('backend-table','done',this)">Done</button>
+      </div>
+      <table id="backend-table">
+        <thead>
+          <tr><th>Feature</th><th>Status</th><th>Priority</th><th>Details</th></tr>
+        </thead>
+        <tbody>
+          <tr data-status="missing"><td>Alerts API Routes</td><td><span class="status status-missing">Missing</span></td><td><span class="status status-high">High</span></td><td>No routes/alerts.py exists. Frontend calls /api/v1/alerts but backend has no handler. Need Alert model, AlertService, and routes.</td></tr>
+          <tr data-status="missing"><td>Settings API Routes</td><td><span class="status status-missing">Missing</span></td><td><span class="status status-high">High</span></td><td>No routes/settings.py exists. Frontend calls /api/v1/settings but backend has no handler. Need SystemSettings model and routes.</td></tr>
+          <tr data-status="partial"><td>Smart & Weighted Distribution</td><td><span class="status status-partial">Partial</span></td><td><span class="status status-high">High</span></td><td>smart() and weighted() in distribution_service.py fall back to round_robin(). WeightService calculates scores but they're not used for selection.</td></tr>
+          <tr data-status="partial"><td>Analytics Endpoint Data</td><td><span class="status status-partial">Partial</span></td><td><span class="status status-high">High</span></td><td>GET /analytics returns basic counts but missing daily_breakdown, hourly_breakdown, and avg_delivery_time fields expected by frontend.</td></tr>
+          <tr data-status="partial"><td>Dynamic Cooldown Integration</td><td><span class="status status-partial">Partial</span></td><td><span class="status status-medium">Medium</span></td><td>CooldownService calculates correctly but MessageService.process_queue() uses fixed sleep instead of dynamic cooldown per profile.</td></tr>
+          <tr data-status="partial"><td>Conversation Threading</td><td><span class="status status-partial">Partial</span></td><td><span class="status status-medium">Medium</span></td><td>send_reply_chat() looks up ConversationRouting but send_open_chat() never creates routing entries after sending.</td></tr>
+          <tr data-status="missing"><td>Message Scheduling & Drip</td><td><span class="status status-missing">Missing</span></td><td><span class="status status-low">Low</span></td><td>scheduling_service.py has basic schedule but no drip campaign logic. No drip API endpoint exists.</td></tr>
+          <tr data-status="missing"><td>Webhook Notifications</td><td><span class="status status-missing">Missing</span></td><td><span class="status status-low">Low</span></td><td>webhook_service.py is a stub with placeholder methods. No actual HTTP webhook sending implemented.</td></tr>
+          <tr data-status="done"><td>Package CRUD + Stats</td><td><span class="status status-done">Done</span></td><td>—</td><td>Full create, read, update, delete with comprehensive stats including queue info and per-profile breakdowns.</td></tr>
+          <tr data-status="done"><td>Profile CRUD + Health</td><td><span class="status status-done">Done</span></td><td>—</td><td>Full CRUD with weight calculation, health reports, risk analysis, block detection integration.</td></tr>
+          <tr data-status="done"><td>Message Sending (Open/Reply)</td><td><span class="status status-done">Done</span></td><td>—</td><td>Both open chat and reply chat endpoints work with Zentra API integration and delivery logging.</td></tr>
+          <tr data-status="done"><td>Zentra API Client</td><td><span class="status status-done">Done</span></td><td>—</td><td>Complete client for text, image, voice, document, video messages plus health check.</td></tr>
+          <tr data-status="done"><td>Background Processor</td><td><span class="status status-done">Done</span></td><td>—</td><td>Runs every 30s: queue processing, scheduled messages, auto-resume, block detection, auto-adjust.</td></tr>
+          <tr data-status="done"><td>Weight Service</td><td><span class="status status-done">Done</span></td><td>—</td><td>Calculates composite weight from health, success rate, account age, priority. Risk scoring included.</td></tr>
+          <tr data-status="done"><td>Cooldown Service</td><td><span class="status status-done">Done</span></td><td>—</td><td>Dynamic cooldown with rush-hour multiplier and quiet-mode logic. Queue status tracking.</td></tr>
+          <tr data-status="done"><td>Risk Pattern Service</td><td><span class="status status-done">Done</span></td><td>—</td><td>Analyzes sending speed, burst activity, failure rate, duplicate messages with risk scoring.</td></tr>
+          <tr data-status="done"><td>Block Detection Service</td><td><span class="status status-done">Done</span></td><td>—</td><td>Checks failure rate, consecutive failures, response patterns. Auto-pause and auto-resume logic.</td></tr>
+          <tr data-status="done"><td>Auto-Adjust Service</td><td><span class="status status-done">Done</span></td><td>—</td><td>Evaluates package performance and adjusts hourly/daily limits up or down based on success rates.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Frontend Tab -->
+    <div id="tab-frontend" class="tab-content">
+      <div class="filter-bar">
+        <button class="filter-btn active" onclick="filterTable('frontend-table','all',this)">All</button>
+        <button class="filter-btn" onclick="filterTable('frontend-table','missing',this)">Missing</button>
+        <button class="filter-btn" onclick="filterTable('frontend-table','partial',this)">Partial</button>
+        <button class="filter-btn" onclick="filterTable('frontend-table','done',this)">Done</button>
+      </div>
+      <table id="frontend-table">
+        <thead>
+          <tr><th>Page / Feature</th><th>Status</th><th>Priority</th><th>Details</th></tr>
+        </thead>
+        <tbody>
+          <tr data-status="partial"><td>Analytics Page — Real Data</td><td><span class="status status-partial">Partial</span></td><td><span class="status status-high">High</span></td><td>Charts use Math.random() fallback data. Needs backend analytics endpoint enhancement first, then remove fake data.</td></tr>
+          <tr data-status="partial"><td>Settings Page — Backend Save</td><td><span class="status status-partial">Partial</span></td><td><span class="status status-high">High</span></td><td>All 3 tabs save to localStorage only. Must connect to systemApi.getSettings() and systemApi.updateSettings().</td></tr>
+          <tr data-status="partial"><td>Alerts Page — Full Features</td><td><span class="status status-partial">Partial</span></td><td><span class="status status-medium">Medium</span></td><td>Has mark-read per alert. Missing: Mark All Read button, severity filter, delete/dismiss, package filter.</td></tr>
+          <tr data-status="missing"><td>Messages — Schedule/Drip UI</td><td><span class="status status-missing">Missing</span></td><td><span class="status status-low">Low</span></td><td>Send dialog only supports immediate sending. No schedule tab, drip campaign option, or scheduled messages list.</td></tr>
+          <tr data-status="partial"><td>PackageDetail — Distribution Mode</td><td><span class="status status-partial">Partial</span></td><td><span class="status status-medium">Medium</span></td><td>Shows mode as badge but no selector to change it. Limits tab needs distribution mode dropdown.</td></tr>
+          <tr data-status="partial"><td>Profile Health Modal</td><td><span class="status status-partial">Partial</span></td><td><span class="status status-medium">Medium</span></td><td>Shows basic scores. Missing: weight breakdown, risk pattern details, block indicators, recommendations, limit bars.</td></tr>
+          <tr data-status="missing"><td>Messages — Pagination</td><td><span class="status status-missing">Missing</span></td><td><span class="status status-low">Low</span></td><td>Loads max 50 messages with no pagination controls. Needs previous/next or infinite scroll.</td></tr>
+          <tr data-status="done"><td>Home Dashboard</td><td><span class="status status-done">Done</span></td><td>—</td><td>Hero banner, metric cards, package list, system health, alerts widget. All connected to API with polling.</td></tr>
+          <tr data-status="done"><td>Packages Page</td><td><span class="status status-done">Done</span></td><td>—</td><td>Full CRUD with create/edit dialogs, search, grid cards, dropdown actions. All working.</td></tr>
+          <tr data-status="done"><td>Profiles Page</td><td><span class="status status-done">Done</span></td><td>—</td><td>Cross-package aggregation, search/filter, table with health/risk/weight columns. All working.</td></tr>
+          <tr data-status="done"><td>DashboardLayout</td><td><span class="status status-done">Done</span></td><td>—</td><td>Collapsible sidebar, alert badge polling, system status, responsive design. Complete.</td></tr>
+          <tr data-status="done"><td>Messages — Send/List</td><td><span class="status status-done">Done</span></td><td>—</td><td>Open/Reply dialogs, message list with status icons, queue status bar, status filter. Working.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Plan Tab -->
+    <div id="tab-plan" class="tab-content">
+      <p style="color:var(--muted);font-size:0.85rem;margin-bottom:1.5rem;">Each step completes a backend feature then immediately connects it to the frontend. Backend → Frontend pairs ensure visible progress after every step.</p>
+      <div class="timeline">
+        <div class="step" data-step="1">
+          <div class="step-title">Alerts System (Backend + Frontend)</div>
+          <div class="step-desc">Create Alert model, AlertService, alerts API routes. Connect Alerts page to real API. Add Mark All Read, severity filter, delete.</div>
+          <div class="step-tags"><span class="status status-high">High</span><span class="status" style="background:var(--primary-dim);color:var(--primary);border:1px solid rgba(0,212,170,0.3)">Backend + Frontend</span></div>
+        </div>
+        <div class="step" data-step="2">
+          <div class="step-title">Settings System (Backend + Frontend)</div>
+          <div class="step-desc">Create SystemSettings model, complete SettingsService, settings API routes. Connect Settings page to backend instead of localStorage.</div>
+          <div class="step-tags"><span class="status status-high">High</span><span class="status" style="background:var(--primary-dim);color:var(--primary);border:1px solid rgba(0,212,170,0.3)">Backend + Frontend</span></div>
+        </div>
+        <div class="step" data-step="3">
+          <div class="step-title">Smart & Weighted Distribution</div>
+          <div class="step-desc">Implement smart() and weighted() in distribution_service.py using weight scores. Add distribution mode selector in PackageDetail.</div>
+          <div class="step-tags"><span class="status status-high">High</span><span class="status" style="background:var(--primary-dim);color:var(--primary);border:1px solid rgba(0,212,170,0.3)">Backend + Frontend</span></div>
+        </div>
+        <div class="step" data-step="4">
+          <div class="step-title">Analytics Real Data</div>
+          <div class="step-desc">Enhance get_analytics() with daily/hourly breakdowns. Remove random data from Analytics page, connect to real API.</div>
+          <div class="step-tags"><span class="status status-high">High</span><span class="status" style="background:var(--primary-dim);color:var(--primary);border:1px solid rgba(0,212,170,0.3)">Backend + Frontend</span></div>
+        </div>
+        <div class="step" data-step="5">
+          <div class="step-title">Dynamic Cooldown Integration</div>
+          <div class="step-desc">Integrate CooldownService into MessageService.process_queue(). Use per-profile dynamic cooldown instead of fixed sleep.</div>
+          <div class="step-tags"><span class="status status-medium">Medium</span><span class="status" style="background:rgba(167,139,250,0.15);color:var(--purple);border:1px solid rgba(167,139,250,0.3)">Backend Only</span></div>
+        </div>
+        <div class="step" data-step="6">
+          <div class="step-title">Conversation Threading</div>
+          <div class="step-desc">Create ConversationRouting entries after successful open messages. Ensure reply messages use sticky routing.</div>
+          <div class="step-tags"><span class="status status-medium">Medium</span><span class="status" style="background:rgba(167,139,250,0.15);color:var(--purple);border:1px solid rgba(167,139,250,0.3)">Backend Only</span></div>
+        </div>
+        <div class="step" data-step="7">
+          <div class="step-title">Enhanced Profile Health Modal</div>
+          <div class="step-desc">Expand health modal with weight/risk breakdowns, block indicators, recommendations, and limit usage bars.</div>
+          <div class="step-tags"><span class="status status-medium">Medium</span><span class="status" style="background:rgba(14,165,233,0.15);color:var(--cyan);border:1px solid rgba(14,165,233,0.3)">Frontend Only</span></div>
+        </div>
+        <div class="step" data-step="8">
+          <div class="step-title">Message Scheduling & Drip</div>
+          <div class="step-desc">Complete drip campaign logic + API endpoint. Add Schedule/Drip tabs in send dialog + scheduled messages list.</div>
+          <div class="step-tags"><span class="status status-low">Low</span><span class="status" style="background:var(--primary-dim);color:var(--primary);border:1px solid rgba(0,212,170,0.3)">Backend + Frontend</span></div>
+        </div>
+        <div class="step" data-step="9">
+          <div class="step-title">Webhook Notifications</div>
+          <div class="step-desc">Implement webhook_service.py with aiohttp. Add webhook test button in Settings page.</div>
+          <div class="step-tags"><span class="status status-low">Low</span><span class="status" style="background:var(--primary-dim);color:var(--primary);border:1px solid rgba(0,212,170,0.3)">Backend + Frontend</span></div>
+        </div>
+        <div class="step" data-step="10">
+          <div class="step-title">Alert Integration into Services</div>
+          <div class="step-desc">Create alerts automatically from block detection, auto-adjust, and message failure events.</div>
+          <div class="step-tags"><span class="status status-low">Low</span><span class="status" style="background:rgba(167,139,250,0.15);color:var(--purple);border:1px solid rgba(167,139,250,0.3)">Backend Only</span></div>
+        </div>
+        <div class="step" data-step="11">
+          <div class="step-title">Message Pagination</div>
+          <div class="step-desc">Add offset/limit pagination to backend messages endpoint. Add pagination controls to Messages page.</div>
+          <div class="step-tags"><span class="status status-low">Low</span><span class="status" style="background:var(--primary-dim);color:var(--primary);border:1px solid rgba(0,212,170,0.3)">Backend + Frontend</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Files Tab -->
+    <div id="tab-files" class="tab-content">
+      <h3 style="font-size:0.9rem;margin-bottom:1rem;color:var(--coral);">New Files to Create</h3>
+      <table>
+        <thead><tr><th>File Path</th><th>Purpose</th></tr></thead>
+        <tbody>
+          <tr><td><code>backend/app/services/alert_service.py</code></td><td>Alert CRUD service — list, count, mark read, mark all read, create</td></tr>
+          <tr><td><code>backend/app/api/routes/alerts.py</code></td><td>Alerts API endpoints — GET /alerts, GET /alerts/count, PATCH read/read-all</td></tr>
+          <tr><td><code>backend/app/api/routes/settings.py</code></td><td>Settings API endpoints — GET /settings, PUT /settings</td></tr>
+        </tbody>
+      </table>
+      <h3 style="font-size:0.9rem;margin:1.5rem 0 1rem;color:var(--amber);">Existing Files to Modify</h3>
+      <table>
+        <thead><tr><th>File Path</th><th>Changes</th></tr></thead>
+        <tbody>
+          <tr><td><code>backend/app/models/models.py</code></td><td>Add Alert and SystemSettings SQLAlchemy models</td></tr>
+          <tr><td><code>backend/app/main.py</code></td><td>Register alerts and settings routers</td></tr>
+          <tr><td><code>backend/app/services/distribution_service.py</code></td><td>Implement smart() and weighted() strategies</td></tr>
+          <tr><td><code>backend/app/services/message_service.py</code></td><td>Dynamic cooldown, ConversationRouting creation, enhanced analytics</td></tr>
+          <tr><td><code>backend/app/services/settings_service.py</code></td><td>Complete get/update settings implementation</td></tr>
+          <tr><td><code>backend/app/services/webhook_service.py</code></td><td>Implement webhook sending with aiohttp</td></tr>
+          <tr><td><code>backend/app/services/scheduling_service.py</code></td><td>Add drip campaign logic</td></tr>
+          <tr><td><code>backend/app/services/block_detection_service.py</code></td><td>Create alerts on block detection events</td></tr>
+          <tr><td><code>backend/app/services/auto_adjust_service.py</code></td><td>Create alerts on limit adjustment events</td></tr>
+          <tr><td><code>frontend/.../pages/Analytics.tsx</code></td><td>Remove random data, connect to real API breakdowns</td></tr>
+          <tr><td><code>frontend/.../pages/Settings.tsx</code></td><td>Save to backend API instead of localStorage</td></tr>
+          <tr><td><code>frontend/.../pages/Alerts.tsx</code></td><td>Add Mark All Read, severity filter, delete</td></tr>
+          <tr><td><code>frontend/.../pages/Messages.tsx</code></td><td>Add schedule/drip UI, pagination</td></tr>
+          <tr><td><code>frontend/.../pages/PackageDetail.tsx</code></td><td>Distribution mode selector, enhanced health modal</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Safe Tab -->
+    <div id="tab-safe" class="tab-content">
+      <p style="color:var(--muted);font-size:0.85rem;margin-bottom:1.25rem;">The following components will remain completely untouched:</p>
+      <div class="no-change-list">
+        <div class="no-change-item">Database connection config (database.py)</div>
+        <div class="no-change-item">Server settings (settings.py)</div>
+        <div class="no-change-item">Zentra API client (client.py)</div>
+        <div class="no-change-item">DashboardLayout component</div>
+        <div class="no-change-item">Home page</div>
+        <div class="no-change-item">Packages page (CRUD works)</div>
+        <div class="no-change-item">Profiles page (aggregation works)</div>
+        <div class="no-change-item">UI component library (shadcn/ui)</div>
+        <div class="no-change-item">Theme & styling (dark + teal)</div>
+        <div class="no-change-item">package.json / dependencies</div>
+        <div class="no-change-item">Vite configuration & proxy</div>
+        <div class="no-change-item">Environment variables / .env</div>
+        <div class="no-change-item">Pydantic schemas</div>
+        <div class="no-change-item">useApi / usePolling hooks</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">
+    Block Preventer Bridge — Completion Plan Report &middot; Generated February 9, 2026 &middot; Awaiting Approval
+  </div>
+</div>
+
+<script>
+// Tab switching
+function switchTab(name) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  event.target.classList.add('active');
+}
+
+// Table filtering
+function filterTable(tableId, status, btn) {
+  const table = document.getElementById(tableId);
+  const rows = table.querySelectorAll('tbody tr');
+  btn.parentElement.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  rows.forEach(row => {
+    if (status === 'all' || row.dataset.status === status) {
+      row.style.display = '';
+    } else {
+      row.style.display = 'none';
+    }
+  });
+}
+
+// Charts
+const chartDefaults = {
+  responsive: true,
+  maintainAspectRatio: false,
+  plugins: {
+    legend: { labels: { color: '#94a3b8', font: { size: 11 } } }
+  }
+};
+
+// Backend Donut
+new Chart(document.getElementById('backendChart'), {
+  type: 'doughnut',
+  data: {
+    labels: ['Fully Done', 'Partially Done', 'Missing'],
+    datasets: [{
+      data: [11, 4, 4],
+      backgroundColor: ['#10b981', '#f59e0b', '#ef4444'],
+      borderColor: '#111827',
+      borderWidth: 3
+    }]
+  },
+  options: {
+    ...chartDefaults,
+    cutout: '65%',
+    plugins: {
+      ...chartDefaults.plugins,
+      tooltip: {
+        callbacks: {
+          label: ctx => `${ctx.label}: ${ctx.raw} features`
+        }
+      }
+    }
+  }
+});
+
+// Frontend Donut
+new Chart(document.getElementById('frontendChart'), {
+  type: 'doughnut',
+  data: {
+    labels: ['Fully Done', 'Partially Done', 'Missing'],
+    datasets: [{
+      data: [5, 5, 2],
+      backgroundColor: ['#10b981', '#f59e0b', '#ef4444'],
+      borderColor: '#111827',
+      borderWidth: 3
+    }]
+  },
+  options: {
+    ...chartDefaults,
+    cutout: '65%',
+    plugins: {
+      ...chartDefaults.plugins,
+      tooltip: {
+        callbacks: {
+          label: ctx => `${ctx.label}: ${ctx.raw} features`
+        }
+      }
+    }
+  }
+});
+
+// Priority Bar Chart
+new Chart(document.getElementById('priorityChart'), {
+  type: 'bar',
+  data: {
+    labels: ['High', 'Medium', 'Low'],
+    datasets: [{
+      label: 'Backend Tasks',
+      data: [4, 2, 2],
+      backgroundColor: 'rgba(0,212,170,0.7)',
+      borderRadius: 6
+    }, {
+      label: 'Frontend Tasks',
+      data: [2, 3, 2],
+      backgroundColor: 'rgba(14,165,233,0.7)',
+      borderRadius: 6
+    }]
+  },
+  options: {
+    ...chartDefaults,
+    scales: {
+      x: { ticks: { color: '#94a3b8' }, grid: { color: 'rgba(30,41,59,0.5)' } },
+      y: { ticks: { color: '#94a3b8', stepSize: 1 }, grid: { color: 'rgba(30,41,59,0.5)' }, beginAtZero: true }
+    }
+  }
+});
+
+// Effort Radar
+new Chart(document.getElementById('effortChart'), {
+  type: 'radar',
+  data: {
+    labels: ['Alerts System', 'Settings System', 'Distribution Logic', 'Analytics Data', 'Cooldown Engine', 'Scheduling', 'Webhooks'],
+    datasets: [{
+      label: 'Backend Effort',
+      data: [8, 6, 7, 5, 4, 5, 3],
+      backgroundColor: 'rgba(0,212,170,0.15)',
+      borderColor: '#00d4aa',
+      borderWidth: 2,
+      pointBackgroundColor: '#00d4aa'
+    }, {
+      label: 'Frontend Effort',
+      data: [6, 5, 3, 4, 0, 5, 2],
+      backgroundColor: 'rgba(14,165,233,0.15)',
+      borderColor: '#0ea5e9',
+      borderWidth: 2,
+      pointBackgroundColor: '#0ea5e9'
+    }]
+  },
+  options: {
+    ...chartDefaults,
+    scales: {
+      r: {
+        ticks: { color: '#94a3b8', backdropColor: 'transparent', stepSize: 2 },
+        grid: { color: 'rgba(30,41,59,0.5)' },
+        pointLabels: { color: '#94a3b8', font: { size: 10 } },
+        beginAtZero: true,
+        max: 10
+      }
+    }
+  }
+});
+</script>
+
+</body>
+</html>

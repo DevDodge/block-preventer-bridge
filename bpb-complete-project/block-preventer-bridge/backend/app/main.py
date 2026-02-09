@@ -8,6 +8,8 @@ from app.config.settings import settings
 from app.api.routes.packages import router as packages_router
 from app.api.routes.profiles import router as profiles_router
 from app.api.routes.messages import router as messages_router
+from app.api.routes.alerts import router as alerts_router
+from app.api.routes.settings import router as settings_router
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -177,6 +179,8 @@ app.add_middleware(
 app.include_router(packages_router, prefix="/api/v1")
 app.include_router(profiles_router, prefix="/api/v1")
 app.include_router(messages_router, prefix="/api/v1")
+app.include_router(alerts_router, prefix="/api/v1")
+app.include_router(settings_router, prefix="/api/v1")
 
 
 @app.get("/")
