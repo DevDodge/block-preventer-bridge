@@ -316,5 +316,6 @@ class SystemSettings(Base):
     # UI preferences
     theme = Column(String(20), default="dark")
     timezone = Column(String(50), default="UTC")
+    message_content_display = Column(String(10), default="hover")  # "hover" or "click"
     
     updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)

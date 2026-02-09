@@ -53,6 +53,7 @@ export default function Settings() {
     // UI
     theme: "dark",
     timezone: "UTC",
+    message_content_display: "hover",
   });
 
   // Sync backend settings into form when loaded
@@ -257,6 +258,26 @@ export default function Settings() {
                       </div>
                     </div>
                   )}
+
+                  {/* Message Content Display */}
+                  <div className="space-y-3 mt-4">
+                    <h4 className="text-xs font-mono text-primary uppercase tracking-wider">Queue UI</h4>
+                    <div className="flex items-center justify-between rounded-md bg-secondary/30 p-3">
+                      <div>
+                        <p className="text-sm text-foreground">Message Content Display</p>
+                        <p className="text-[11px] text-muted-foreground">How to show message content in the queue view</p>
+                      </div>
+                      <Select value={formData.message_content_display} onValueChange={(v) => updateField("message_content_display", v)}>
+                        <SelectTrigger className="w-[120px] bg-secondary/30 h-8 text-xs">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent className="bg-popover border-border">
+                          <SelectItem value="hover">On Hover</SelectItem>
+                          <SelectItem value="click">On Click</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
 
                   {/* System info */}
                   <div className="space-y-2 mt-4">
