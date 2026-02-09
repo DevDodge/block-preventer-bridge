@@ -120,7 +120,9 @@ async def get_profile(package_id: UUID, profile_id: UUID, db: AsyncSession = Dep
 async def update_profile(package_id: UUID, profile_id: UUID, data: ProfileUpdate, db: AsyncSession = Depends(get_db)):
     """Update a profile."""
     service = ProfileService(db)
-    update_data = {k: v for k, v in data.model_dump().items() if v is not None}
+    # Use exclude_unset=True to only include fields the client explicitly sent.
+    # This allows sending null for per-profile limit fields to clear overrides.
+    update_data = data.model_dump(exclude_unset=True)
     profile = await service.update_profile(profile_id, update_data)
     if not profile:
         raise HTTPException(status_code=404, detail="Profile not found")
@@ -141,10 +143,17 @@ async def delete_profile(package_id: UUID, profile_id: UUID, db: AsyncSession = 
 async def get_profile_health(package_id: UUID, profile_id: UUID, db: AsyncSession = Depends(get_db)):
     """Get comprehensive health report for a profile."""
     service = ProfileService(db)
-    health = await service.get_health(profile_id)
-    if not health:
-        raise HTTPException(status_code=404, detail="Profile not found")
-    return health
+    try:
+        health = await service.get_health(profile_id)
+        if not health:
+            raise HTTPException(status_code=404, detail="Profile not found")
+        return health
+    except HTTPException:
+        raise
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).error(f"Health check failed for profile {profile_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Health check failed: {str(e)}")
 
 
 @router.patch("/{profile_id}/status", response_model=dict)

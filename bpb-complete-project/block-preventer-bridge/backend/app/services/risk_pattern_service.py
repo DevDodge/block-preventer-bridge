@@ -196,8 +196,15 @@ class RiskPatternService:
         now = datetime.now(timezone.utc)
         current_hour = now.hour
 
-        start_hour = package.active_hours_start.hour if package.active_hours_start else 4
-        end_hour = package.active_hours_end.hour if package.active_hours_end else 0
+        # active_hours_start/end are stored as strings like "04:00:00" or "04:00"
+        try:
+            start_hour = int(str(package.active_hours_start).split(":")[0]) if package.active_hours_start else 4
+        except (ValueError, IndexError):
+            start_hour = 4
+        try:
+            end_hour = int(str(package.active_hours_end).split(":")[0]) if package.active_hours_end else 0
+        except (ValueError, IndexError):
+            end_hour = 0
 
         if end_hour == 0:
             end_hour = 24
