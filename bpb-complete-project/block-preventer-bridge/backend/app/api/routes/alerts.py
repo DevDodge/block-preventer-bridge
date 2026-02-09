@@ -98,3 +98,15 @@ async def delete_alert(
     if not deleted:
         raise HTTPException(status_code=404, detail="Alert not found")
     return {"deleted": True}
+
+
+@router.delete("/alerts/delete-all")
+async def delete_all_alerts(
+    package_id: Optional[str] = Query(None),
+    db: AsyncSession = Depends(get_db),
+):
+    """Delete all alerts (optionally filtered by package)."""
+    service = AlertService(db)
+    pkg_uuid = UUID(package_id) if package_id else None
+    count = await service.delete_all_alerts(package_id=pkg_uuid)
+    return {"deleted": count, "message": f"Successfully deleted {count} alert(s)"}

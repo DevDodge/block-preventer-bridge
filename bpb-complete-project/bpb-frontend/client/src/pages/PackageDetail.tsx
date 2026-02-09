@@ -30,6 +30,8 @@ export default function PackageDetail() {
   const [showAddProfile, setShowAddProfile] = useState(false);
   const [showHealth, setShowHealth] = useState(false);
   const [healthData, setHealthData] = useState<any>(null);
+  const [showEditSettings, setShowEditSettings] = useState(false);
+  const [settingsForm, setSettingsForm] = useState<any>({});
 
   const [profileForm, setProfileForm] = useState({
     name: "", phone_number: "", zentra_uuid: "", zentra_api_token: "",
@@ -74,6 +76,36 @@ export default function PackageDetail() {
       const data = await profilesApi.health(packageId, profileId);
       setHealthData(data);
       setShowHealth(true);
+    } catch (err: any) {
+      toast.error(err.message);
+    }
+  };
+
+  const openEditSettings = () => {
+    setSettingsForm({
+      max_messages_per_hour: pkg.max_messages_per_hour,
+      max_messages_per_3hours: pkg.max_messages_per_3hours,
+      max_messages_per_day: pkg.max_messages_per_day,
+      max_concurrent_sends: pkg.max_concurrent_sends,
+      freeze_duration_hours: pkg.freeze_duration_hours,
+      rush_hour_threshold: pkg.rush_hour_threshold,
+      rush_hour_multiplier: pkg.rush_hour_multiplier,
+      quiet_mode_threshold: pkg.quiet_mode_threshold,
+      quiet_mode_multiplier: pkg.quiet_mode_multiplier,
+      retry_attempts: pkg.retry_attempts,
+      auto_adjust_limits: pkg.auto_adjust_limits,
+      auto_pause_on_failures: pkg.auto_pause_on_failures,
+      retry_failed_messages: pkg.retry_failed_messages,
+    });
+    setShowEditSettings(true);
+  };
+
+  const handleSaveSettings = async () => {
+    try {
+      await packagesApi.update(packageId, settingsForm);
+      toast.success("Settings updated successfully");
+      setShowEditSettings(false);
+      refetch();
     } catch (err: any) {
       toast.error(err.message);
     }
@@ -266,6 +298,11 @@ export default function PackageDetail() {
           <TabsContent value="limits">
             <Card className="border-glow bg-card/80">
               <CardContent className="p-6">
+                <div className="flex justify-end mb-4">
+                  <Button onClick={openEditSettings} size="sm" variant="outline" className="gap-2 border-primary/30 text-primary hover:bg-primary/10">
+                    <Shield className="h-3.5 w-3.5" /> Edit Settings
+                  </Button>
+                </div>
                 {/* Distribution Mode Selector */}
                 <div className="mb-6 p-4 rounded-lg bg-secondary/20 border border-border/50">
                   <div className="flex items-center justify-between">
@@ -515,6 +552,94 @@ export default function PackageDetail() {
               )}
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Settings Dialog */}
+      <Dialog open={showEditSettings} onOpenChange={setShowEditSettings}>
+        <DialogContent className="bg-card border-border max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="font-mono flex items-center gap-2"><Shield className="h-4 w-4 text-primary" /> Edit Package Settings</DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground">Configure rate limits, queue settings, and automation</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-6 py-4">
+            {/* Rate Limits */}
+            <div className="space-y-3">
+              <h4 className="text-xs font-mono text-primary uppercase tracking-wider">Rate Limits</h4>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Messages per Hour</Label>
+                  <Input type="number" value={settingsForm.max_messages_per_hour} onChange={(e) => setSettingsForm({ ...settingsForm, max_messages_per_hour: +e.target.value })} className="bg-secondary/30 font-mono" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Messages per 3 Hours</Label>
+                  <Input type="number" value={settingsForm.max_messages_per_3hours} onChange={(e) => setSettingsForm({ ...settingsForm, max_messages_per_3hours: +e.target.value })} className="bg-secondary/30 font-mono" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Messages per Day</Label>
+                  <Input type="number" value={settingsForm.max_messages_per_day} onChange={(e) => setSettingsForm({ ...settingsForm, max_messages_per_day: +e.target.value })} className="bg-secondary/30 font-mono" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Concurrent Sends</Label>
+                  <Input type="number" value={settingsForm.max_concurrent_sends} onChange={(e) => setSettingsForm({ ...settingsForm, max_concurrent_sends: +e.target.value })} className="bg-secondary/30 font-mono" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Freeze Duration (hours)</Label>
+                  <Input type="number" value={settingsForm.freeze_duration_hours} onChange={(e) => setSettingsForm({ ...settingsForm, freeze_duration_hours: +e.target.value })} className="bg-secondary/30 font-mono" />
+                </div>
+              </div>
+            </div>
+
+            {/* Queue & Automation */}
+            <div className="space-y-3">
+              <h4 className="text-xs font-mono text-primary uppercase tracking-wider">Queue & Automation</h4>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Rush Hour Threshold</Label>
+                  <Input type="number" value={settingsForm.rush_hour_threshold} onChange={(e) => setSettingsForm({ ...settingsForm, rush_hour_threshold: +e.target.value })} className="bg-secondary/30 font-mono" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Rush Multiplier</Label>
+                  <Input type="number" step="0.1" value={settingsForm.rush_hour_multiplier} onChange={(e) => setSettingsForm({ ...settingsForm, rush_hour_multiplier: +e.target.value })} className="bg-secondary/30 font-mono" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Quiet Threshold</Label>
+                  <Input type="number" value={settingsForm.quiet_mode_threshold} onChange={(e) => setSettingsForm({ ...settingsForm, quiet_mode_threshold: +e.target.value })} className="bg-secondary/30 font-mono" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Quiet Multiplier</Label>
+                  <Input type="number" step="0.1" value={settingsForm.quiet_mode_multiplier} onChange={(e) => setSettingsForm({ ...settingsForm, quiet_mode_multiplier: +e.target.value })} className="bg-secondary/30 font-mono" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Retry Attempts</Label>
+                  <Input type="number" value={settingsForm.retry_attempts} onChange={(e) => setSettingsForm({ ...settingsForm, retry_attempts: +e.target.value })} className="bg-secondary/30 font-mono" />
+                </div>
+              </div>
+            </div>
+
+            {/* Toggles */}
+            <div className="space-y-3">
+              <h4 className="text-xs font-mono text-primary uppercase tracking-wider">Features</h4>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between rounded-md bg-secondary/30 px-4 py-3">
+                  <Label className="text-xs cursor-pointer">Auto-Adjust Limits</Label>
+                  <input type="checkbox" checked={settingsForm.auto_adjust_limits} onChange={(e) => setSettingsForm({ ...settingsForm, auto_adjust_limits: e.target.checked })} className="h-4 w-4 cursor-pointer" />
+                </div>
+                <div className="flex items-center justify-between rounded-md bg-secondary/30 px-4 py-3">
+                  <Label className="text-xs cursor-pointer">Auto-Pause on Failures</Label>
+                  <input type="checkbox" checked={settingsForm.auto_pause_on_failures} onChange={(e) => setSettingsForm({ ...settingsForm, auto_pause_on_failures: e.target.checked })} className="h-4 w-4 cursor-pointer" />
+                </div>
+                <div className="flex items-center justify-between rounded-md bg-secondary/30 px-4 py-3">
+                  <Label className="text-xs cursor-pointer">Retry Failed Messages</Label>
+                  <input type="checkbox" checked={settingsForm.retry_failed_messages} onChange={(e) => setSettingsForm({ ...settingsForm, retry_failed_messages: e.target.checked })} className="h-4 w-4 cursor-pointer" />
+                </div>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowEditSettings(false)}>Cancel</Button>
+            <Button onClick={handleSaveSettings} className="bg-primary text-primary-foreground gap-2"><Shield className="h-3.5 w-3.5" /> Save Settings</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </DashboardLayout>

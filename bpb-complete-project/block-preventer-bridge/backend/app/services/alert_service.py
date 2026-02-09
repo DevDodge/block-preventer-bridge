@@ -116,3 +116,13 @@ class AlertService:
         result = await self.db.execute(query)
         await self.db.flush()
         return result.rowcount
+
+    async def delete_all_alerts(self, package_id: UUID = None) -> int:
+        """Delete all alerts (optionally filtered by package)."""
+        from sqlalchemy import delete as sql_delete
+        query = sql_delete(Alert)
+        if package_id:
+            query = query.where(Alert.package_id == package_id)
+        result = await self.db.execute(query)
+        await self.db.flush()
+        return result.rowcount

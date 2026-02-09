@@ -68,8 +68,23 @@ export default function Alerts() {
 
   const handleDelete = async (id: string) => {
     try {
-      await fetch(`/api/v1/alerts/${id}`, { method: "DELETE" });
+      await alertsApi.delete(id);
       toast.success("Alert deleted");
+      refetch();
+      refetchCount();
+    } catch (err: any) {
+      toast.error(err.message);
+    }
+  };
+
+  const handleDeleteAll = async () => {
+    if (!confirm("Are you sure you want to delete ALL alerts? This action cannot be undone.")) {
+      return;
+    }
+    try {
+      const pkg = packageFilter !== "all" ? packageFilter : undefined;
+      const result = await alertsApi.deleteAll(pkg);
+      toast.success(result.message || `Deleted ${result.deleted} alert(s)`);
       refetch();
       refetchCount();
     } catch (err: any) {
@@ -125,6 +140,16 @@ export default function Alerts() {
                 className="text-xs gap-1 border-primary/30 text-primary hover:bg-primary/10"
               >
                 <CheckCheck className="h-3.5 w-3.5" /> Mark All Read
+              </Button>
+            )}
+            {(alerts && alerts.length > 0) && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleDeleteAll}
+                className="text-xs gap-1 border-coral/30 text-coral hover:bg-coral/10"
+              >
+                <Trash2 className="h-3.5 w-3.5" /> Delete All
               </Button>
             )}
           </div>

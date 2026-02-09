@@ -215,6 +215,20 @@ class BlockDetectionService:
 
     async def _create_critical_alert(self, profile: Profile, indicators: list, package: Package):
         """Create a critical alert without pausing the profile."""
+        # Check if we already have a recent critical alert for this profile (deduplication)
+        one_hour_ago = datetime.now(timezone.utc) - timedelta(hours=1)
+        existing = await self.db.execute(
+            select(func.count(Alert.id)).where(
+                Alert.profile_id == profile.id,
+                Alert.alert_type == "block_detected",
+                Alert.severity == "critical",
+                Alert.created_at >= one_hour_ago
+            )
+        )
+        if (existing.scalar() or 0) > 0:
+            logger.debug(f"Skipping duplicate critical alert for profile {profile.name} - alert already exists in last hour")
+            return  # Don't spam critical alerts
+        
         alert = Alert(
             package_id=profile.package_id,
             profile_id=profile.id,

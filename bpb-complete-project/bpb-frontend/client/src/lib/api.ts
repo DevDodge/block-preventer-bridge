@@ -96,6 +96,11 @@ export const alertsApi = {
     const query = packageId ? `?package_id=${packageId}` : "";
     return request<any>(`/alerts/read-all${query}`, { method: "PATCH" });
   },
+  delete: (alertId: string) => request<any>(`/alerts/${alertId}`, { method: "DELETE" }),
+  deleteAll: (packageId?: string) => {
+    const query = packageId ? `?package_id=${packageId}` : "";
+    return request<any>(`/alerts/delete-all${query}`, { method: "DELETE" });
+  },
 };
 
 // ========== SYSTEM / SETTINGS ==========
