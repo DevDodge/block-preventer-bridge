@@ -1,0 +1,832 @@
+{
+    "info": {
+        "_postman_id": "bpb-api-collection",
+        "name": "Block Preventer Bridge API",
+        "description": "Complete API collection for the Block Preventer Bridge WhatsApp message distribution system.\n\n## Getting Started\n1. Set the `base_url` variable to your API server (default: http://localhost:8000)\n2. Create a package first, then copy the package_id to the variable\n3. Add profiles to your package, copy profile_id to variable\n4. Send messages via Open Chat or Reply Chat endpoints\n\n## Key Concepts\n- **Package**: A container for profiles with rate limiting and distribution settings\n- **Profile**: A WhatsApp business profile (phone number) used for sending\n- **Open Chat**: New conversation (rate limited, queued)\n- **Reply Chat**: Reply to existing conversation (immediate, no limits)",
+        "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+    },
+    "variable": [
+        {
+            "key": "base_url",
+            "value": "http://localhost:8000/api/v1",
+            "type": "string"
+        },
+        {
+            "key": "package_id",
+            "value": "YOUR_PACKAGE_ID_HERE",
+            "type": "string"
+        },
+        {
+            "key": "profile_id",
+            "value": "YOUR_PROFILE_ID_HERE",
+            "type": "string"
+        },
+        {
+            "key": "message_id",
+            "value": "YOUR_MESSAGE_ID_HERE",
+            "type": "string"
+        },
+        {
+            "key": "alert_id",
+            "value": "YOUR_ALERT_ID_HERE",
+            "type": "string"
+        }
+    ],
+    "item": [
+        {
+            "name": "📦 Packages",
+            "description": "Package management - Create, read, update, delete message distribution packages",
+            "item": [
+                {
+                    "name": "List All Packages",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/packages",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "packages"
+                            ]
+                        },
+                        "description": "Get list of all packages with summary stats (profiles count, messages today, queue size)"
+                    }
+                },
+                {
+                    "name": "Create Package",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"name\": \"My WhatsApp Package\",\n  \"description\": \"Main package for e-commerce notifications\",\n  \"distribution_mode\": \"smart\",\n  \"max_messages_per_hour\": 20,\n  \"max_messages_per_3hours\": 45,\n  \"max_messages_per_day\": 120,\n  \"max_concurrent_sends\": 4,\n  \"freeze_duration_hours\": 4,\n  \"auto_adjust_limits\": true,\n  \"auto_pause_on_failures\": true,\n  \"retry_failed_messages\": true,\n  \"retry_attempts\": 3\n}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/packages",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "packages"
+                            ]
+                        },
+                        "description": "Create a new package. Distribution modes: round_robin, random, weighted, smart"
+                    }
+                },
+                {
+                    "name": "Get Package Details",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/packages/{{package_id}}",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "packages",
+                                "{{package_id}}"
+                            ]
+                        },
+                        "description": "Get full package details including all profiles and their statistics"
+                    }
+                },
+                {
+                    "name": "Update Package",
+                    "request": {
+                        "method": "PUT",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"name\": \"Updated Package Name\",\n  \"max_messages_per_hour\": 30,\n  \"distribution_mode\": \"weighted\",\n  \"auto_adjust_limits\": false\n}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/packages/{{package_id}}",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "packages",
+                                "{{package_id}}"
+                            ]
+                        },
+                        "description": "Update package settings. Only include fields you want to change."
+                    }
+                },
+                {
+                    "name": "Delete Package",
+                    "request": {
+                        "method": "DELETE",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/packages/{{package_id}}",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "packages",
+                                "{{package_id}}"
+                            ]
+                        },
+                        "description": "Delete a package and all its profiles, messages, and data. IRREVERSIBLE!"
+                    }
+                },
+                {
+                    "name": "Get Package Stats",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/packages/{{package_id}}/stats",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "packages",
+                                "{{package_id}}",
+                                "stats"
+                            ]
+                        },
+                        "description": "Get real-time statistics for a package (queue size, active profiles, messages today)"
+                    }
+                }
+            ]
+        },
+        {
+            "name": "👤 Profiles",
+            "description": "Profile management - WhatsApp business profiles for sending messages",
+            "item": [
+                {
+                    "name": "List Profiles",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/packages/{{package_id}}/profiles",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "packages",
+                                "{{package_id}}",
+                                "profiles"
+                            ]
+                        },
+                        "description": "List all profiles in a package with current statistics"
+                    }
+                },
+                {
+                    "name": "Create Profile",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"name\": \"Sales Profile 1\",\n  \"phone_number\": \"+201012345678\",\n  \"zentra_uuid\": \"your-zentra-uuid-here\",\n  \"manual_priority\": 10,\n  \"account_age_months\": 12\n}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/packages/{{package_id}}/profiles",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "packages",
+                                "{{package_id}}",
+                                "profiles"
+                            ]
+                        },
+                        "description": "Add a new WhatsApp profile to the package. zentra_uuid is required for Zentra API integration."
+                    }
+                },
+                {
+                    "name": "Get Profile Details",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/packages/{{package_id}}/profiles/{{profile_id}}",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "packages",
+                                "{{package_id}}",
+                                "profiles",
+                                "{{profile_id}}"
+                            ]
+                        },
+                        "description": "Get full profile details with statistics"
+                    }
+                },
+                {
+                    "name": "Update Profile",
+                    "request": {
+                        "method": "PUT",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"name\": \"Updated Profile Name\",\n  \"manual_priority\": 20,\n  \"account_age_months\": 24\n}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/packages/{{package_id}}/profiles/{{profile_id}}",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "packages",
+                                "{{package_id}}",
+                                "profiles",
+                                "{{profile_id}}"
+                            ]
+                        },
+                        "description": "Update profile settings"
+                    }
+                },
+                {
+                    "name": "Delete Profile",
+                    "request": {
+                        "method": "DELETE",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/packages/{{package_id}}/profiles/{{profile_id}}",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "packages",
+                                "{{package_id}}",
+                                "profiles",
+                                "{{profile_id}}"
+                            ]
+                        },
+                        "description": "Remove a profile from the package"
+                    }
+                },
+                {
+                    "name": "Get Profile Health",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/packages/{{package_id}}/profiles/{{profile_id}}/health",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "packages",
+                                "{{package_id}}",
+                                "profiles",
+                                "{{profile_id}}",
+                                "health"
+                            ]
+                        },
+                        "description": "Get comprehensive health report for a profile (risk score, message patterns, block indicators)"
+                    }
+                },
+                {
+                    "name": "Toggle Profile Status",
+                    "request": {
+                        "method": "PATCH",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/packages/{{package_id}}/profiles/{{profile_id}}/status?status=active",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "packages",
+                                "{{package_id}}",
+                                "profiles",
+                                "{{profile_id}}",
+                                "status"
+                            ],
+                            "query": [
+                                {
+                                    "key": "status",
+                                    "value": "active",
+                                    "description": "Options: active, inactive, paused"
+                                }
+                            ]
+                        },
+                        "description": "Change profile status (active/inactive/paused)"
+                    }
+                }
+            ]
+        },
+        {
+            "name": "💬 Messages",
+            "description": "Message sending and management - Open Chat, Reply Chat, Scheduling, Queue",
+            "item": [
+                {
+                    "name": "📤 Send Open Chat (New Conversation)",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"message_type\": \"text\",\n  \"content\": \"Hello! This is a new conversation from Block Preventer Bridge.\",\n  \"recipients\": [\n    \"+201012345678\",\n    \"+201098765432\"\n  ]\n}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/packages/{{package_id}}/messages/open",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "packages",
+                                "{{package_id}}",
+                                "messages",
+                                "open"
+                            ]
+                        },
+                        "description": "Send a NEW conversation message (Open Chat). Rate limited and queued. Messages are distributed across available profiles.\n\nmessage_type options: text, template, media"
+                    }
+                },
+                {
+                    "name": "📥 Send Reply Chat (Existing Conversation)",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"message_type\": \"text\",\n  \"content\": \"Thank you for your message! How can I help you today?\",\n  \"recipient\": \"+201012345678\",\n  \"conversation_id\": \"optional-conversation-uuid\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/packages/{{package_id}}/messages/reply",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "packages",
+                                "{{package_id}}",
+                                "messages",
+                                "reply"
+                            ]
+                        },
+                        "description": "Send a REPLY to an existing conversation. Immediate execution, no rate limits. Uses the profile that originally contacted this recipient (via conversation routing)."
+                    }
+                },
+                {
+                    "name": "📅 Schedule Message",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"message_type\": \"text\",\n  \"content\": \"This is a scheduled message!\",\n  \"recipients\": [\n    \"+201012345678\",\n    \"+201098765432\"\n  ],\n  \"scheduled_at\": \"2026-02-10T10:00:00Z\",\n  \"drip_mode\": true,\n  \"drip_interval_minutes\": 30\n}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/packages/{{package_id}}/messages/schedule",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "packages",
+                                "{{package_id}}",
+                                "messages",
+                                "schedule"
+                            ]
+                        },
+                        "description": "Schedule a message for future delivery.\n\n**Drip Mode**: When enabled, each recipient receives the message at staggered intervals (e.g., 30 min apart) instead of all at once."
+                    }
+                },
+                {
+                    "name": "List Messages",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/packages/{{package_id}}/messages?limit=50&offset=0",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "packages",
+                                "{{package_id}}",
+                                "messages"
+                            ],
+                            "query": [
+                                {
+                                    "key": "status",
+                                    "value": "sent",
+                                    "description": "Filter by status: queued, sent, delivered, failed",
+                                    "disabled": true
+                                },
+                                {
+                                    "key": "mode",
+                                    "value": "open",
+                                    "description": "Filter by mode: open, reply",
+                                    "disabled": true
+                                },
+                                {
+                                    "key": "limit",
+                                    "value": "50",
+                                    "description": "Number of messages (1-200)"
+                                },
+                                {
+                                    "key": "offset",
+                                    "value": "0",
+                                    "description": "Pagination offset"
+                                }
+                            ]
+                        },
+                        "description": "List messages with optional filters"
+                    }
+                },
+                {
+                    "name": "Get Message Details",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/packages/{{package_id}}/messages/{{message_id}}",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "packages",
+                                "{{package_id}}",
+                                "messages",
+                                "{{message_id}}"
+                            ]
+                        },
+                        "description": "Get full message details with delivery logs for each recipient"
+                    }
+                },
+                {
+                    "name": "List Scheduled Messages",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/packages/{{package_id}}/messages/scheduled",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "packages",
+                                "{{package_id}}",
+                                "messages",
+                                "scheduled"
+                            ]
+                        },
+                        "description": "Get all pending scheduled messages"
+                    }
+                },
+                {
+                    "name": "Cancel Scheduled Message",
+                    "request": {
+                        "method": "DELETE",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/packages/{{package_id}}/messages/{{message_id}}/cancel",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "packages",
+                                "{{package_id}}",
+                                "messages",
+                                "{{message_id}}",
+                                "cancel"
+                            ]
+                        },
+                        "description": "Cancel a scheduled message before it's sent"
+                    }
+                },
+                {
+                    "name": "Get Queue Status",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/packages/{{package_id}}/queue",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "packages",
+                                "{{package_id}}",
+                                "queue"
+                            ]
+                        },
+                        "description": "Get detailed queue status for a package (queue size, mode, active profiles)"
+                    }
+                },
+                {
+                    "name": "Get Analytics",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/packages/{{package_id}}/analytics?days=7",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "packages",
+                                "{{package_id}}",
+                                "analytics"
+                            ],
+                            "query": [
+                                {
+                                    "key": "days",
+                                    "value": "7",
+                                    "description": "Number of days (1-90)"
+                                }
+                            ]
+                        },
+                        "description": "Get analytics data: daily breakdown, hourly breakdown, delivery stats"
+                    }
+                },
+                {
+                    "name": "Check Block Status",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/packages/{{package_id}}/block-check",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "packages",
+                                "{{package_id}}",
+                                "block-check"
+                            ]
+                        },
+                        "description": "Check all profiles for block indicators"
+                    }
+                },
+                {
+                    "name": "Get Risk Patterns",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/packages/{{package_id}}/profiles/{{profile_id}}/risk-patterns",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "packages",
+                                "{{package_id}}",
+                                "profiles",
+                                "{{profile_id}}",
+                                "risk-patterns"
+                            ]
+                        },
+                        "description": "Get detailed risk pattern analysis for a specific profile"
+                    }
+                }
+            ]
+        },
+        {
+            "name": "🔔 Alerts",
+            "description": "System alerts and notifications",
+            "item": [
+                {
+                    "name": "List Alerts",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/alerts?limit=100&offset=0",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "alerts"
+                            ],
+                            "query": [
+                                {
+                                    "key": "package_id",
+                                    "value": "{{package_id}}",
+                                    "description": "Filter by package",
+                                    "disabled": true
+                                },
+                                {
+                                    "key": "unread_only",
+                                    "value": "true",
+                                    "description": "Only unread alerts",
+                                    "disabled": true
+                                },
+                                {
+                                    "key": "severity",
+                                    "value": "critical",
+                                    "description": "Filter by severity: info, warning, critical",
+                                    "disabled": true
+                                },
+                                {
+                                    "key": "limit",
+                                    "value": "100"
+                                },
+                                {
+                                    "key": "offset",
+                                    "value": "0"
+                                }
+                            ]
+                        },
+                        "description": "List alerts with optional filters"
+                    }
+                },
+                {
+                    "name": "Get Unread Count",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/alerts/count",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "alerts",
+                                "count"
+                            ],
+                            "query": [
+                                {
+                                    "key": "package_id",
+                                    "value": "{{package_id}}",
+                                    "disabled": true
+                                }
+                            ]
+                        },
+                        "description": "Get count of unread alerts (for badge display)"
+                    }
+                },
+                {
+                    "name": "Mark Alert as Read",
+                    "request": {
+                        "method": "PATCH",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/alerts/{{alert_id}}/read",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "alerts",
+                                "{{alert_id}}",
+                                "read"
+                            ]
+                        },
+                        "description": "Mark a single alert as read"
+                    }
+                },
+                {
+                    "name": "Mark All Alerts as Read",
+                    "request": {
+                        "method": "PATCH",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/alerts/read-all",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "alerts",
+                                "read-all"
+                            ],
+                            "query": [
+                                {
+                                    "key": "package_id",
+                                    "value": "{{package_id}}",
+                                    "description": "Only for specific package",
+                                    "disabled": true
+                                }
+                            ]
+                        },
+                        "description": "Mark all alerts as read"
+                    }
+                },
+                {
+                    "name": "Delete Alert",
+                    "request": {
+                        "method": "DELETE",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/alerts/{{alert_id}}",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "alerts",
+                                "{{alert_id}}"
+                            ]
+                        },
+                        "description": "Delete a single alert"
+                    }
+                }
+            ]
+        },
+        {
+            "name": "⚙️ Settings",
+            "description": "System settings and configuration",
+            "item": [
+                {
+                    "name": "Get Settings",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/settings",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "settings"
+                            ]
+                        },
+                        "description": "Get all system settings"
+                    }
+                },
+                {
+                    "name": "Update Settings",
+                    "request": {
+                        "method": "PUT",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"zentra_api_url\": \"https://api.zentra.example.com\",\n  \"zentra_api_key\": \"your-api-key\",\n  \"default_timezone\": \"Africa/Cairo\",\n  \"webhook_enabled\": true,\n  \"webhook_url\": \"https://your-server.com/webhook\",\n  \"queue_processing_enabled\": true,\n  \"block_detection_enabled\": true\n}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/settings",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "settings"
+                            ]
+                        },
+                        "description": "Update system settings"
+                    }
+                }
+            ]
+        },
+        {
+            "name": "🔧 Health Check",
+            "description": "System health and status",
+            "item": [
+                {
+                    "name": "Health Check",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "http://localhost:8000/health",
+                            "host": [
+                                "http://localhost:8000"
+                            ],
+                            "path": [
+                                "health"
+                            ]
+                        },
+                        "description": "Check if the API server is running"
+                    }
+                }
+            ]
+        }
+    ]
+}

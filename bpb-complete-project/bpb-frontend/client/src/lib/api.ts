@@ -70,6 +70,11 @@ export const messagesApi = {
   cancelScheduled: (packageId: string, messageId: string) =>
     request<any>(`/packages/${packageId}/messages/${messageId}/cancel`, { method: "DELETE" }),
   queueStatus: (packageId: string) => request<any>(`/packages/${packageId}/queue`),
+  queueItems: (packageId: string, status?: string) => {
+    const query = new URLSearchParams();
+    if (status) query.set("status", status);
+    return request<any[]>(`/packages/${packageId}/queue/items?${query.toString()}`);
+  },
   analytics: (packageId: string, days?: number) =>
     request<any>(`/packages/${packageId}/analytics?days=${days || 7}`),
   checkBlocks: (packageId: string) => request<any[]>(`/packages/${packageId}/block-check`),

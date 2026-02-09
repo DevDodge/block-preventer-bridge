@@ -290,3 +290,53 @@ class SchedulingService:
             "next_send_at": next_send.isoformat() if next_send else None,
             "queue_mode": "normal"  # Will be set by auto_adjust_service
         }
+
+    async def get_queue_items(self, package_id: UUID, status_filter: str = None, limit: int = 100) -> list:
+        """
+        Get detailed queue items for developer debugging.
+        Returns items with scheduled times, errors, mode, and profile info.
+        """
+        from sqlalchemy.orm import selectinload
+        
+        # Build query for queue items related to this package with message info
+        query = (
+            select(MessageQueue)
+            .join(Message, MessageQueue.message_id == Message.id)
+            .where(Message.package_id == package_id)
+            .options(
+                selectinload(MessageQueue.profile),
+                selectinload(MessageQueue.message)
+            )
+            .order_by(MessageQueue.scheduled_send_at.asc())
+            .limit(limit)
+        )
+        
+        if status_filter:
+            query = query.where(MessageQueue.status == status_filter)
+        
+        result = await self.db.execute(query)
+        items = result.scalars().all()
+        
+        now = datetime.now(timezone.utc)
+        
+        return [
+            {
+                "id": str(item.id),
+                "message_id": str(item.message_id),
+                "profile_id": str(item.profile_id),
+                "profile_name": item.profile.name if item.profile else "Unknown",
+                "recipient": item.recipient,
+                "status": item.status,
+                "mode": item.message.message_mode if item.message else "open",
+                "content": item.content[:100] + "..." if len(item.content or "") > 100 else item.content,
+                "scheduled_send_at": item.scheduled_send_at.isoformat() if item.scheduled_send_at else None,
+                "seconds_until_send": max(0, int((item.scheduled_send_at - now).total_seconds())) if item.scheduled_send_at and item.scheduled_send_at > now else 0,
+                "attempt_count": item.attempt_count,
+                "max_attempts": item.max_attempts,
+                "last_error": item.last_error,
+                "sent_at": item.sent_at.isoformat() if item.sent_at else None,
+                "created_at": item.created_at.isoformat() if item.created_at else None,
+            }
+            for item in items
+        ]
+

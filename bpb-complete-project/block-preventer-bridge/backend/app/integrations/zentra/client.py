@@ -2,7 +2,7 @@
 import aiohttp
 import logging
 import time
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 
 logger = logging.getLogger(__name__)
 
@@ -10,28 +10,37 @@ logger = logging.getLogger(__name__)
 class ZentraClient:
     """Client for interacting with Zentra WhatsApp API."""
     
-    BASE_URL = "https://api.zentra.io/v1"
+    BASE_URL = "https://api.zentramsg.com/v1"
     
     def __init__(self, api_token: str, device_uuid: str):
         self.api_token = api_token
         self.device_uuid = device_uuid
-        self.headers = {
-            "Authorization": f"Bearer {api_token}",
-            "Content-Type": "application/json"
-        }
     
-    async def _request(self, method: str, endpoint: str, data: dict = None) -> Dict[str, Any]:
-        """Make an HTTP request to Zentra API."""
+    async def _request(self, endpoint: str, form_data: dict) -> Dict[str, Any]:
+        """Make an HTTP request to Zentra API using multipart/form-data."""
         url = f"{self.BASE_URL}{endpoint}"
         start_time = time.time()
         
+        headers = {
+            "x-api-token": self.api_token,
+            "accept": "*/*"
+        }
+        
         try:
             async with aiohttp.ClientSession() as session:
-                async with session.request(
-                    method, url, json=data, headers=self.headers, timeout=aiohttp.ClientTimeout(total=30)
+                data = aiohttp.FormData()
+                for key, value in form_data.items():
+                    data.add_field(key, str(value))
+                
+                async with session.post(
+                    url, data=data, headers=headers, timeout=aiohttp.ClientTimeout(total=30)
                 ) as response:
                     response_time_ms = int((time.time() - start_time) * 1000)
-                    result = await response.json()
+                    
+                    try:
+                        result = await response.json()
+                    except:
+                        result = {"raw_response": await response.text()}
                     
                     return {
                         "success": response.status in (200, 201),
@@ -58,39 +67,73 @@ class ZentraClient:
             }
     
     async def send_text(self, recipient: str, text: str) -> Dict[str, Any]:
-        """Send a text message."""
-        return await self._request("POST", f"/devices/{self.device_uuid}/messages/text", {
-            "to": recipient,
-            "text": text
+        """Send a text message to one recipient."""
+        return await self._request("/messages", {
+            "device_uuid": self.device_uuid,
+            "text_message": text,
+            "type_message": "text",
+            "type_contact": "numbers",
+            "ids": recipient
+        })
+    
+    async def send_text_bulk(self, recipients: List[str], text: str) -> Dict[str, Any]:
+        """Send a text message to multiple recipients."""
+        return await self._request("/messages", {
+            "device_uuid": self.device_uuid,
+            "text_message": text,
+            "type_message": "text",
+            "type_contact": "numbers",
+            "ids": ",".join(recipients)
         })
     
     async def send_image(self, recipient: str, image_url: str, caption: str = None) -> Dict[str, Any]:
         """Send an image message."""
-        data = {"to": recipient, "image_url": image_url}
+        data = {
+            "device_uuid": self.device_uuid,
+            "type_message": "image",
+            "type_contact": "numbers",
+            "ids": recipient,
+            "media_url": image_url
+        }
         if caption:
-            data["caption"] = caption
-        return await self._request("POST", f"/devices/{self.device_uuid}/messages/image", data)
+            data["text_message"] = caption
+        return await self._request("/messages", data)
     
     async def send_voice(self, recipient: str, audio_url: str) -> Dict[str, Any]:
         """Send a voice message."""
-        return await self._request("POST", f"/devices/{self.device_uuid}/messages/voice", {
-            "to": recipient,
-            "audio_url": audio_url
+        return await self._request("/messages", {
+            "device_uuid": self.device_uuid,
+            "type_message": "audio",
+            "type_contact": "numbers",
+            "ids": recipient,
+            "media_url": audio_url
         })
     
     async def send_document(self, recipient: str, document_url: str, caption: str = None) -> Dict[str, Any]:
         """Send a document."""
-        data = {"to": recipient, "document_url": document_url}
+        data = {
+            "device_uuid": self.device_uuid,
+            "type_message": "document",
+            "type_contact": "numbers",
+            "ids": recipient,
+            "media_url": document_url
+        }
         if caption:
-            data["caption"] = caption
-        return await self._request("POST", f"/devices/{self.device_uuid}/messages/document", data)
+            data["text_message"] = caption
+        return await self._request("/messages", data)
     
     async def send_video(self, recipient: str, video_url: str, caption: str = None) -> Dict[str, Any]:
         """Send a video message."""
-        data = {"to": recipient, "video_url": video_url}
+        data = {
+            "device_uuid": self.device_uuid,
+            "type_message": "video",
+            "type_contact": "numbers",
+            "ids": recipient,
+            "media_url": video_url
+        }
         if caption:
-            data["caption"] = caption
-        return await self._request("POST", f"/devices/{self.device_uuid}/messages/video", data)
+            data["text_message"] = caption
+        return await self._request("/messages", data)
     
     async def send_message(self, recipient: str, message_type: str, content: str,
                            media_url: str = None, caption: str = None) -> Dict[str, Any]:
@@ -99,7 +142,7 @@ class ZentraClient:
             return await self.send_text(recipient, content)
         elif message_type == "image":
             return await self.send_image(recipient, media_url or content, caption)
-        elif message_type == "voice":
+        elif message_type in ("voice", "audio"):
             return await self.send_voice(recipient, media_url or content)
         elif message_type == "document":
             return await self.send_document(recipient, media_url or content, caption)
@@ -110,10 +153,28 @@ class ZentraClient:
     
     async def check_whatsapp(self, phone_number: str) -> Dict[str, Any]:
         """Check if a phone number is on WhatsApp."""
-        return await self._request("POST", f"/devices/{self.device_uuid}/check-whatsapp", {
+        return await self._request("/check-whatsapp", {
+            "device_uuid": self.device_uuid,
             "phone": phone_number
         })
     
     async def health_check(self) -> Dict[str, Any]:
         """Check device health status."""
-        return await self._request("GET", f"/devices/{self.device_uuid}/status")
+        # Use GET request for status check
+        url = f"{self.BASE_URL}/devices/{self.device_uuid}/status"
+        headers = {"x-api-token": self.api_token, "accept": "*/*"}
+        
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url, headers=headers, timeout=aiohttp.ClientTimeout(total=10)) as response:
+                    try:
+                        result = await response.json()
+                    except:
+                        result = {"raw_response": await response.text()}
+                    return {
+                        "success": response.status == 200,
+                        "status_code": response.status,
+                        "data": result
+                    }
+        except Exception as e:
+            return {"success": False, "data": {"error": str(e)}}

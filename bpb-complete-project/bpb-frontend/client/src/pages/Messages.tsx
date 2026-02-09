@@ -1,11 +1,12 @@
 /**
  * Messages Page - Send messages and view history
  * Design: Command Center dark theme with teal accents
+ * Enhanced: Queue items with countdown timers and error display
  */
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import {
   MessageSquare, Send, Search, Activity, Clock, CheckCircle2,
-  XCircle, AlertTriangle, Package, Filter, RefreshCw, Calendar, ChevronDown
+  XCircle, AlertTriangle, Package, Filter, RefreshCw, Calendar, ChevronDown, Timer, Zap
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -95,6 +96,60 @@ export default function Messages() {
     () => selectedPkg ? messagesApi.queueStatus(selectedPkg) : Promise.resolve(null),
     [selectedPkg]
   );
+
+  // Queue items for developer view
+  const [queueItems, setQueueItems] = useState<any[]>([]);
+  const [queueLoading, setQueueLoading] = useState(false);
+  const [showQueueView, setShowQueueView] = useState(true);
+  const [countdown, setCountdown] = useState(0); // Trigger re-render for countdown
+  const [errorDialog, setErrorDialog] = useState<{ open: boolean; error: string; item: any }>({ open: false, error: "", item: null });
+
+  // Fetch queue items
+  const fetchQueueItems = async () => {
+    if (!selectedPkg) return;
+    setQueueLoading(true);
+    try {
+      const items = await messagesApi.queueItems(selectedPkg);
+      setQueueItems(items);
+    } catch (err) {
+      console.error("Failed to fetch queue items", err);
+    } finally {
+      setQueueLoading(false);
+    }
+  };
+
+  // Fetch queue items when package changes
+  useEffect(() => {
+    if (selectedPkg) {
+      fetchQueueItems();
+    }
+  }, [selectedPkg]);
+
+  // Countdown timer - update every second
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCountdown(c => c + 1);
+    }, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Format seconds to mm:ss or hh:mm:ss
+  const formatCountdown = (seconds: number) => {
+    if (seconds <= 0) return "Now";
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    const s = seconds % 60;
+    if (h > 0) return `${h}:${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
+    return `${m}:${s.toString().padStart(2, "0")}`;
+  };
+
+  // Calculate live countdown from scheduled_send_at
+  const getSecondsRemaining = (scheduledAt: string | null) => {
+    if (!scheduledAt) return 0;
+    const sendTime = new Date(scheduledAt).getTime();
+    const now = Date.now();
+    return Math.max(0, Math.floor((sendTime - now) / 1000));
+  };
 
   const [openForm, setOpenForm] = useState({
     recipients: "", content: "", message_type: "text",
@@ -228,10 +283,29 @@ export default function Messages() {
               <span className="text-muted-foreground">Queue: <span className="text-primary font-bold">{queueStatus.queue_size || 0}</span></span>
               <span className="text-muted-foreground">Mode: <span className="text-primary">{queueStatus.queue_mode || "—"}</span></span>
               <span className="text-muted-foreground">Active: <span className="text-emerald">{queueStatus.active_profiles || 0}</span></span>
+              {queueStatus.next_send_at && (
+                <span className="text-muted-foreground">Next: <span className="text-amber-400 font-bold">{formatCountdown(getSecondsRemaining(queueStatus.next_send_at))}</span></span>
+              )}
             </div>
           )}
 
           <div className="flex items-center gap-2 ml-auto">
+            <Button
+              variant={showQueueView ? "default" : "outline"}
+              size="sm"
+              onClick={() => { setShowQueueView(true); fetchQueueItems(); }}
+              className="gap-1 text-xs"
+            >
+              <Timer className="h-3.5 w-3.5" /> Queue
+            </Button>
+            <Button
+              variant={!showQueueView ? "default" : "outline"}
+              size="sm"
+              onClick={() => setShowQueueView(false)}
+              className="gap-1 text-xs"
+            >
+              <MessageSquare className="h-3.5 w-3.5" /> History
+            </Button>
             <Select value={statusFilter} onValueChange={handleFilterChange}>
               <SelectTrigger className="w-[130px] bg-secondary/30 text-xs">
                 <SelectValue />
@@ -244,13 +318,13 @@ export default function Messages() {
                 <SelectItem value="failed">Failed</SelectItem>
               </SelectContent>
             </Select>
-            <Button variant="outline" size="sm" onClick={refetchMsgs} className="gap-1 border-border">
+            <Button variant="outline" size="sm" onClick={() => { refetchMsgs(); fetchQueueItems(); }} className="gap-1 border-border">
               <RefreshCw className="h-3.5 w-3.5" /> Refresh
             </Button>
           </div>
         </div>
 
-        {/* Messages list */}
+        {/* Queue Items View (Developer) */}
         {!selectedPkg ? (
           <Card className="border-glow bg-card/80">
             <CardContent className="flex flex-col items-center py-16">
@@ -258,84 +332,210 @@ export default function Messages() {
               <p className="text-sm text-muted-foreground">Select a package to view messages</p>
             </CardContent>
           </Card>
-        ) : msgsLoading ? (
-          <div className="flex items-center justify-center py-20">
-            <Activity className="h-6 w-6 text-primary animate-spin" />
-          </div>
-        ) : messages && messages.length > 0 ? (
-          <div className="space-y-2">
-            {/* Header row */}
-            <div className="grid grid-cols-12 gap-3 px-4 py-2 text-[10px] font-mono text-muted-foreground uppercase tracking-wider">
-              <div className="col-span-1">Status</div>
-              <div className="col-span-2">Recipient</div>
-              <div className="col-span-3">Message</div>
-              <div className="col-span-2">Profile</div>
-              <div className="col-span-1">Mode</div>
-              <div className="col-span-1">Attempts</div>
-              <div className="col-span-2">Time</div>
+        ) : showQueueView ? (
+          /* Queue Items with Countdown */
+          queueLoading ? (
+            <div className="flex items-center justify-center py-20">
+              <Activity className="h-6 w-6 text-primary animate-spin" />
             </div>
-
-            {messages.map((msg: any, i: number) => (
-              <motion.div key={msg.id} initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.02 }}>
-                <div className="grid grid-cols-12 gap-3 items-center rounded-lg border border-border/50 bg-card/60 px-4 py-3 hover:border-primary/20 transition-all">
-                  <div className="col-span-1 flex items-center gap-1.5">
-                    {statusIcon(msg.status)}
-                    <span className="text-[10px] font-mono text-muted-foreground capitalize">{msg.status}</span>
-                  </div>
-                  <div className="col-span-2">
-                    <p className="text-xs font-mono text-foreground truncate">{msg.recipient_number || msg.conversation_id || "—"}</p>
-                  </div>
-                  <div className="col-span-3">
-                    <p className="text-xs text-foreground truncate">{msg.message_text}</p>
-                  </div>
-                  <div className="col-span-2">
-                    <p className="text-xs text-muted-foreground truncate">{msg.profile_name || "Auto"}</p>
-                  </div>
-                  <div className="col-span-1">
-                    <Badge variant="outline" className="text-[9px] border-primary/20 text-primary">{msg.mode}</Badge>
-                  </div>
-                  <div className="col-span-1 text-center">
-                    <span className="text-xs font-mono text-muted-foreground">{msg.attempts || 0}</span>
-                  </div>
-                  <div className="col-span-2">
-                    <p className="text-[10px] text-muted-foreground font-mono">
-                      {msg.created_at ? new Date(msg.created_at).toLocaleString() : "—"}
-                    </p>
-                  </div>
-                </div>
-              </motion.div>
-            ))}
-
-            {/* Load More Button */}
-            {hasMore && messages.length >= PAGE_SIZE && (
-              <div className="flex justify-center pt-4">
-                <Button
-                  variant="outline"
-                  onClick={loadMore}
-                  disabled={loadingMore}
-                  className="gap-2 border-border text-xs"
-                >
-                  {loadingMore ? (
-                    <Activity className="h-3.5 w-3.5 animate-spin" />
-                  ) : (
-                    <ChevronDown className="h-3.5 w-3.5" />
-                  )}
-                  {loadingMore ? "Loading..." : `Load More (${messages.length} loaded)`}
-                </Button>
+          ) : queueItems && queueItems.length > 0 ? (
+            <div className="space-y-2">
+              {/* Header row */}
+              <div className="grid grid-cols-12 gap-2 px-4 py-2 text-[10px] font-mono text-muted-foreground uppercase tracking-wider">
+                <div className="col-span-1">Status</div>
+                <div className="col-span-1">Mode</div>
+                <div className="col-span-1">Countdown</div>
+                <div className="col-span-2">Recipient</div>
+                <div className="col-span-2">Profile</div>
+                <div className="col-span-1">Attempt</div>
+                <div className="col-span-4">Error / Send Time</div>
               </div>
-            )}
-          </div>
+
+              {queueItems.map((item: any, i: number) => {
+                const secondsLeft = getSecondsRemaining(item.scheduled_send_at);
+                const isFailed = item.status === "failed";
+                const isSent = item.status === "sent";
+                const isProcessing = item.status === "processing";
+
+                return (
+                  <motion.div key={item.id} initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.015 }}>
+                    <div className={`grid grid-cols-12 gap-2 items-center rounded-lg border px-4 py-3 transition-all ${isFailed ? "border-coral/50 bg-coral/5" :
+                      isSent ? "border-emerald/30 bg-emerald/5" :
+                        isProcessing ? "border-amber-400/50 bg-amber-400/5" :
+                          "border-border/50 bg-card/60 hover:border-primary/20"
+                      }`}>
+                      {/* Status */}
+                      <div className="col-span-1 flex items-center gap-1">
+                        {isFailed ? <XCircle className="h-3 w-3 text-coral" /> :
+                          isSent ? <CheckCircle2 className="h-3 w-3 text-emerald" /> :
+                            isProcessing ? <Zap className="h-3 w-3 text-amber-400 animate-pulse" /> :
+                              <Clock className="h-3 w-3 text-primary" />}
+                        <span className={`text-[9px] font-mono capitalize ${isFailed ? "text-coral" :
+                          isSent ? "text-emerald" :
+                            isProcessing ? "text-amber-400" :
+                              "text-muted-foreground"
+                          }`}>{item.status}</span>
+                      </div>
+
+                      {/* Mode */}
+                      <div className="col-span-1">
+                        <Badge variant="outline" className={`text-[8px] px-1 py-0 ${item.mode === "reply" ? "border-purple-500/30 text-purple-400" : "border-blue-500/30 text-blue-400"}`}>
+                          {item.mode === "reply" ? "Reply" : "Open"}
+                        </Badge>
+                      </div>
+
+                      {/* Countdown */}
+                      <div className="col-span-1">
+                        {isSent ? (
+                          <span className="text-xs font-mono text-emerald">✓</span>
+                        ) : isFailed ? (
+                          <span className="text-xs font-mono text-coral">✗</span>
+                        ) : isProcessing ? (
+                          <span className="text-[10px] font-mono text-amber-400 animate-pulse">...</span>
+                        ) : secondsLeft === 0 ? (
+                          <span className="text-[10px] font-mono text-amber-400 font-bold animate-pulse">Now!</span>
+                        ) : (
+                          <span className={`text-xs font-mono font-bold ${secondsLeft < 60 ? "text-amber-400" :
+                            secondsLeft < 300 ? "text-yellow-500" :
+                              "text-primary"
+                            }`}>{formatCountdown(secondsLeft)}</span>
+                        )}
+                      </div>
+
+                      {/* Recipient */}
+                      <div className="col-span-2">
+                        <p className="text-xs font-mono text-foreground truncate">{item.recipient}</p>
+                      </div>
+
+                      {/* Profile */}
+                      <div className="col-span-2">
+                        <p className="text-xs text-muted-foreground truncate">{item.profile_name}</p>
+                      </div>
+
+                      {/* Attempt */}
+                      <div className="col-span-1 text-center">
+                        <span className={`text-xs font-mono ${item.attempt_count >= item.max_attempts ? "text-coral" : "text-muted-foreground"
+                          }`}>{item.attempt_count}/{item.max_attempts}</span>
+                      </div>
+
+                      {/* Error / Time - Clickable for full error */}
+                      <div className="col-span-4">
+                        {item.last_error ? (
+                          <button
+                            onClick={() => setErrorDialog({ open: true, error: item.last_error, item })}
+                            className="text-left text-[10px] text-coral font-mono truncate hover:underline cursor-pointer flex items-center gap-1 w-full"
+                            title="Click to view full error"
+                          >
+                            <AlertTriangle className="h-3 w-3 flex-shrink-0" />
+                            <span className="truncate">{item.last_error}</span>
+                          </button>
+                        ) : item.sent_at ? (
+                          <p className="text-[10px] text-emerald/80 font-mono">
+                            ✓ {new Date(item.sent_at).toLocaleString()}
+                          </p>
+                        ) : item.scheduled_send_at ? (
+                          <p className="text-[10px] text-muted-foreground font-mono">
+                            @ {new Date(item.scheduled_send_at).toLocaleTimeString()}
+                          </p>
+                        ) : (
+                          <span className="text-[10px] text-muted-foreground">—</span>
+                        )}
+                      </div>
+                    </div>
+                  </motion.div>
+                );
+              })}
+            </div>
+          ) : (
+            <Card className="border-glow bg-card/80">
+              <CardContent className="flex flex-col items-center py-16">
+                <Timer className="h-12 w-12 text-muted-foreground/20 mb-4" />
+                <p className="text-sm text-muted-foreground">No items in queue</p>
+                <p className="text-xs text-muted-foreground/60 mt-1">Send a message to see queue items</p>
+              </CardContent>
+            </Card>
+          )
         ) : (
-          <Card className="border-glow bg-card/80">
-            <CardContent className="flex flex-col items-center py-16">
-              <MessageSquare className="h-12 w-12 text-muted-foreground/20 mb-4" />
-              <p className="text-sm text-muted-foreground">No messages yet</p>
-              <p className="text-xs text-muted-foreground/60 mt-1">Send your first message to get started</p>
-              <Button onClick={() => setShowSend(true)} size="sm" className="mt-3 gap-2">
-                <Send className="h-3.5 w-3.5" /> Send Message
-              </Button>
-            </CardContent>
-          </Card>
+          /* Original Messages History View */
+          msgsLoading ? (
+            <div className="flex items-center justify-center py-20">
+              <Activity className="h-6 w-6 text-primary animate-spin" />
+            </div>
+          ) : messages && messages.length > 0 ? (
+            <div className="space-y-2">
+              {/* Header row */}
+              <div className="grid grid-cols-12 gap-3 px-4 py-2 text-[10px] font-mono text-muted-foreground uppercase tracking-wider">
+                <div className="col-span-1">Status</div>
+                <div className="col-span-2">Recipient</div>
+                <div className="col-span-3">Message</div>
+                <div className="col-span-2">Profile</div>
+                <div className="col-span-1">Mode</div>
+                <div className="col-span-1">Attempts</div>
+                <div className="col-span-2">Time</div>
+              </div>
+
+              {messages.map((msg: any, i: number) => (
+                <motion.div key={msg.id} initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.02 }}>
+                  <div className="grid grid-cols-12 gap-3 items-center rounded-lg border border-border/50 bg-card/60 px-4 py-3 hover:border-primary/20 transition-all">
+                    <div className="col-span-1 flex items-center gap-1.5">
+                      {statusIcon(msg.status)}
+                      <span className="text-[10px] font-mono text-muted-foreground capitalize">{msg.status}</span>
+                    </div>
+                    <div className="col-span-2">
+                      <p className="text-xs font-mono text-foreground truncate">{msg.recipient_number || msg.conversation_id || "—"}</p>
+                    </div>
+                    <div className="col-span-3">
+                      <p className="text-xs text-foreground truncate">{msg.message_text}</p>
+                    </div>
+                    <div className="col-span-2">
+                      <p className="text-xs text-muted-foreground truncate">{msg.profile_name || "Auto"}</p>
+                    </div>
+                    <div className="col-span-1">
+                      <Badge variant="outline" className="text-[9px] border-primary/20 text-primary">{msg.mode}</Badge>
+                    </div>
+                    <div className="col-span-1 text-center">
+                      <span className="text-xs font-mono text-muted-foreground">{msg.attempts || 0}</span>
+                    </div>
+                    <div className="col-span-2">
+                      <p className="text-[10px] text-muted-foreground font-mono">
+                        {msg.created_at ? new Date(msg.created_at).toLocaleString() : "—"}
+                      </p>
+                    </div>
+                  </div>
+                </motion.div>
+              ))}
+
+              {/* Load More Button */}
+              {hasMore && messages.length >= PAGE_SIZE && (
+                <div className="flex justify-center pt-4">
+                  <Button
+                    variant="outline"
+                    onClick={loadMore}
+                    disabled={loadingMore}
+                    className="gap-2 border-border text-xs"
+                  >
+                    {loadingMore ? (
+                      <Activity className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <ChevronDown className="h-3.5 w-3.5" />
+                    )}
+                    {loadingMore ? "Loading..." : `Load More (${messages.length} loaded)`}
+                  </Button>
+                </div>
+              )}
+            </div>
+          ) : (
+            <Card className="border-glow bg-card/80">
+              <CardContent className="flex flex-col items-center py-16">
+                <MessageSquare className="h-12 w-12 text-muted-foreground/20 mb-4" />
+                <p className="text-sm text-muted-foreground">No messages yet</p>
+                <p className="text-xs text-muted-foreground/60 mt-1">Send your first message to get started</p>
+                <Button onClick={() => setShowSend(true)} size="sm" className="mt-3 gap-2">
+                  <Send className="h-3.5 w-3.5" /> Send Message
+                </Button>
+              </CardContent>
+            </Card>
+          )
         )}
       </div>
 
@@ -514,6 +714,55 @@ export default function Messages() {
               </Button>
             </TabsContent>
           </Tabs>
+        </DialogContent>
+      </Dialog>
+
+      {/* Error Details Dialog */}
+      <Dialog open={errorDialog.open} onOpenChange={(open) => setErrorDialog({ ...errorDialog, open })}>
+        <DialogContent className="bg-card border-coral/30 max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-coral flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5" /> Error Details
+            </DialogTitle>
+            <DialogDescription>
+              Full terminal error log for debugging
+            </DialogDescription>
+          </DialogHeader>
+          {errorDialog.item && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                  <span className="text-muted-foreground">Recipient:</span>
+                  <p className="font-mono text-foreground">{errorDialog.item.recipient}</p>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Profile:</span>
+                  <p className="text-foreground">{errorDialog.item.profile_name}</p>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Mode:</span>
+                  <Badge variant="outline" className={`text-xs ${errorDialog.item.mode === "reply" ? "border-purple-500/30 text-purple-400" : "border-blue-500/30 text-blue-400"}`}>
+                    {errorDialog.item.mode === "reply" ? "Reply" : "Open"}
+                  </Badge>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Attempts:</span>
+                  <p className="font-mono text-coral">{errorDialog.item.attempt_count}/{errorDialog.item.max_attempts}</p>
+                </div>
+              </div>
+              <div>
+                <span className="text-muted-foreground text-sm">Full Error:</span>
+                <pre className="mt-2 p-4 bg-secondary/30 rounded-lg border border-coral/20 text-coral text-xs font-mono whitespace-pre-wrap overflow-auto max-h-64">
+                  {errorDialog.error}
+                </pre>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setErrorDialog({ open: false, error: "", item: null })}>
+              Close
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </DashboardLayout>

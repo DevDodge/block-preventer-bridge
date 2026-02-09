@@ -117,6 +117,18 @@ async def get_queue_status(package_id: UUID, db: AsyncSession = Depends(get_db))
     return status
 
 
+@router.get("/packages/{package_id}/queue/items", response_model=List[dict])
+async def get_queue_items(
+    package_id: UUID,
+    status: Optional[str] = Query(None, description="Filter by status: waiting, processing, sent, failed"),
+    limit: int = Query(100, ge=1, le=500),
+    db: AsyncSession = Depends(get_db)
+):
+    """Get detailed queue items for developer debugging. Shows scheduled times, countdown, and errors."""
+    scheduling_service = SchedulingService(db)
+    return await scheduling_service.get_queue_items(package_id, status_filter=status, limit=limit)
+
+
 @router.get("/packages/{package_id}/analytics", response_model=dict)
 async def get_analytics(
     package_id: UUID,

@@ -117,7 +117,7 @@ class AutoAdjustService:
             # Create info alert about adjustment
             alert = Alert(
                 package_id=package.id,
-                alert_type="limits_adjusted",
+                alert_type="system",
                 severity="info",
                 title=f"Rate Limits Auto-Adjusted: {package.name}",
                 message=f"Adjustments: {'; '.join(adjustments)}. "
