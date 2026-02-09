@@ -6,6 +6,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.database import get_db
 from app.services.message_service import MessageService
 from app.services.cooldown_service import CooldownService
+from app.services.scheduling_service import SchedulingService
+from app.services.block_detection_service import BlockDetectionService
+from app.services.risk_pattern_service import RiskPatternService
+from app.services.settings_service import SettingsService
 from app.schemas.message import (
     OpenChatRequest, ReplyChatRequest, MessageResponse,
     OpenChatResponse, ReplyChatResponse, QueueStatusResponse, AlertResponse
@@ -60,6 +64,7 @@ async def list_messages(
         "processed_count": m.processed_count,
         "failed_count": m.failed_count,
         "success_count": m.success_count,
+        "scheduled_at": m.scheduled_at.isoformat() if m.scheduled_at else None,
         "created_at": m.created_at.isoformat() if m.created_at else None
     } for m in messages]
 
@@ -99,15 +104,16 @@ async def get_message(package_id: UUID, message_id: UUID, db: AsyncSession = Dep
         "success_count": message.success_count,
         "distribution_result": message.distribution_result,
         "delivery_logs": delivery_logs,
+        "scheduled_at": message.scheduled_at.isoformat() if message.scheduled_at else None,
         "created_at": message.created_at.isoformat() if message.created_at else None
     }
 
 
 @router.get("/packages/{package_id}/queue", response_model=dict)
 async def get_queue_status(package_id: UUID, db: AsyncSession = Depends(get_db)):
-    """Get queue status for a package."""
-    cooldown_service = CooldownService(db)
-    status = await cooldown_service.get_queue_status(package_id)
+    """Get detailed queue status for a package."""
+    scheduling_service = SchedulingService(db)
+    status = await scheduling_service.get_queue_status(package_id)
     return status
 
 
@@ -121,6 +127,71 @@ async def get_analytics(
     service = MessageService(db)
     return await service.get_analytics(package_id, days)
 
+
+# ========== SCHEDULING ==========
+
+@router.post("/packages/{package_id}/messages/schedule", response_model=dict, status_code=201)
+async def schedule_message(package_id: UUID, data: dict, db: AsyncSession = Depends(get_db)):
+    """Schedule a message for future delivery."""
+    service = SchedulingService(db)
+    try:
+        result = await service.schedule_message(package_id, data)
+        return result
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.get("/packages/{package_id}/messages/scheduled", response_model=List[dict])
+async def get_scheduled_messages(package_id: UUID, db: AsyncSession = Depends(get_db)):
+    """Get all scheduled messages for a package."""
+    service = SchedulingService(db)
+    return await service.get_scheduled_messages(package_id)
+
+
+@router.delete("/packages/{package_id}/messages/{message_id}/cancel")
+async def cancel_scheduled_message(package_id: UUID, message_id: UUID, db: AsyncSession = Depends(get_db)):
+    """Cancel a scheduled message."""
+    service = SchedulingService(db)
+    cancelled = await service.cancel_scheduled_message(message_id)
+    if not cancelled:
+        raise HTTPException(status_code=404, detail="Scheduled message not found or already processed")
+    return {"message": "Scheduled message cancelled"}
+
+
+# ========== BLOCK DETECTION ==========
+
+@router.get("/packages/{package_id}/block-check", response_model=List[dict])
+async def check_blocks(package_id: UUID, db: AsyncSession = Depends(get_db)):
+    """Check all profiles in a package for block indicators."""
+    service = BlockDetectionService(db)
+    return await service.check_all_profiles(package_id)
+
+
+# ========== RISK PATTERNS ==========
+
+@router.get("/packages/{package_id}/profiles/{profile_id}/risk-patterns", response_model=dict)
+async def get_risk_patterns(package_id: UUID, profile_id: UUID, db: AsyncSession = Depends(get_db)):
+    """Get detailed risk pattern analysis for a profile."""
+    from app.models.models import Profile, Package
+    from sqlalchemy import select
+
+    pkg_result = await db.execute(select(Package).where(Package.id == package_id))
+    package = pkg_result.scalar_one_or_none()
+    if not package:
+        raise HTTPException(status_code=404, detail="Package not found")
+
+    prof_result = await db.execute(
+        select(Profile).where(Profile.id == profile_id, Profile.package_id == package_id)
+    )
+    profile = prof_result.scalar_one_or_none()
+    if not profile:
+        raise HTTPException(status_code=404, detail="Profile not found")
+
+    service = RiskPatternService(db)
+    return await service.analyze_patterns(profile, package)
+
+
+# ========== ALERTS ==========
 
 @router.get("/alerts", response_model=List[dict])
 async def get_alerts(
@@ -145,9 +216,49 @@ async def get_alerts(
     } for a in alerts]
 
 
+@router.get("/alerts/count")
+async def get_unread_alert_count(db: AsyncSession = Depends(get_db)):
+    """Get count of unread alerts for badge display."""
+    service = MessageService(db)
+    alerts = await service.get_alerts(unread_only=True)
+    return {"unread_count": len(alerts)}
+
+
 @router.patch("/alerts/{alert_id}/read")
 async def mark_alert_read(alert_id: UUID, db: AsyncSession = Depends(get_db)):
     """Mark an alert as read."""
     service = MessageService(db)
     await service.mark_alert_read(alert_id)
     return {"message": "Alert marked as read"}
+
+
+@router.patch("/alerts/read-all")
+async def mark_all_alerts_read(
+    package_id: Optional[UUID] = Query(None),
+    db: AsyncSession = Depends(get_db)
+):
+    """Mark all alerts as read."""
+    from sqlalchemy import update
+    from app.models.models import Alert
+    query = update(Alert).where(Alert.is_read == False).values(is_read=True)
+    if package_id:
+        query = query.where(Alert.package_id == package_id)
+    await db.execute(query)
+    await db.flush()
+    return {"message": "All alerts marked as read"}
+
+
+# ========== SETTINGS ==========
+
+@router.get("/settings", response_model=dict)
+async def get_settings(db: AsyncSession = Depends(get_db)):
+    """Get global system settings."""
+    service = SettingsService(db)
+    return await service.get_settings()
+
+
+@router.put("/settings", response_model=dict)
+async def update_settings(data: dict, db: AsyncSession = Depends(get_db)):
+    """Update global system settings."""
+    service = SettingsService(db)
+    return await service.update_settings(data)

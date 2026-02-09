@@ -17,6 +17,9 @@ async_session = async_sessionmaker(
     expire_on_commit=False,
 )
 
+# Alias for background task usage
+async_session_factory = async_session
+
 
 class Base(DeclarativeBase):
     pass

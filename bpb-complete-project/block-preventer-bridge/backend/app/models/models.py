@@ -279,3 +279,41 @@ class SystemSetting(Base):
     value = Column(Text, nullable=False)
     description = Column(Text)
     updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+
+class SystemSettings(Base):
+    """Single-row global settings table."""
+    __tablename__ = "global_settings"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    
+    # Cooldown
+    global_cooldown_min = Column(Integer, default=300)
+    global_cooldown_max = Column(Integer, default=900)
+    max_daily_messages_global = Column(Integer, default=500)
+    
+    # Auto-pause
+    auto_pause_enabled = Column(Boolean, default=True)
+    auto_pause_failure_threshold = Column(Integer, default=5)
+    auto_pause_success_rate_threshold = Column(Float, default=70.0)
+    
+    # Block detection
+    block_detection_enabled = Column(Boolean, default=True)
+    risk_alert_threshold = Column(Integer, default=60)
+    auto_adjust_limits_global = Column(Boolean, default=True)
+    
+    # Active hours
+    active_hours_start = Column(String(10), default="04:00")
+    active_hours_end = Column(String(10), default="00:00")
+    
+    # Notifications
+    webhook_url = Column(Text, default="")
+    webhook_enabled = Column(Boolean, default=False)
+    notification_email = Column(Text, default="")
+    email_notifications_enabled = Column(Boolean, default=False)
+    
+    # UI preferences
+    theme = Column(String(20), default="dark")
+    timezone = Column(String(50), default="UTC")
+    
+    updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
