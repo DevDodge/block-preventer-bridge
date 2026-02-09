@@ -1,0 +1,297 @@
+================================================================================
+                    WHATSAPP SPREADER - FEATURE PLAN
+================================================================================
+
+PRODUCT VISION
+--------------
+A smart message distribution system that spreads WhatsApp messages across 
+multiple accounts to prevent blocking and ensure reliable delivery.
+
+================================================================================
+                         CORE MESSAGE TYPES
+================================================================================
+
+There are TWO distinct message sending modes:
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  1. REPLY CHAT (Immediate Response)                                         │
+├─────────────────────────────────────────────────────────────────────────────┤
+│  • When customer sends a message → system MUST reply IMMEDIATELY            │
+│  • NO delays, NO queuing, NO rate limits applied                            │
+│  • Bypasses all waiting strategies                                          │
+│  • Uses sticky routing (same profile replies to same customer)              │
+│  • Priority: CRITICAL - customer is waiting for response                    │
+│  • Limits: NONE - must always work                                          │
+│                                                                             │
+│  USE CASE: Customer support bot responding to inquiries                     │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  2. OPEN CHAT (Proactive Messaging)                                         │
+├─────────────────────────────────────────────────────────────────────────────┤
+│  • Sending messages to customers WITHOUT them initiating first              │
+│  • Can have delays, queuing, scheduling                                     │
+│  • All rate limits and waiting strategies apply                             │
+│  • Distributes across profiles using selected algorithm                     │
+│  • Priority: NORMAL - can wait for optimal delivery time                    │
+│  • Limits: ALL configurable limits shown in UI                              │
+│                                                                             │
+│  USE CASE: Marketing campaigns, order confirmations, announcements          │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+================================================================================
+                         PACKAGE SYSTEM
+================================================================================
+
+WHAT IS A PACKAGE?
+------------------
+A package is a logical group of WhatsApp profiles (accounts) that work 
+together to send/receive messages.
+
+Example Package: "E-Commerce Orders"
+  ├── Profile 1: Sales WhatsApp #1 (UUID: abc123)
+  ├── Profile 2: Sales WhatsApp #2 (UUID: def456)
+  ├── Profile 3: Sales WhatsApp #3 (UUID: ghi789)
+  └── Profile 4: Support WhatsApp (UUID: jkl012)
+
+WHY USE PACKAGES?
+-----------------
+• Group related accounts together (by campaign, by use-case)
+• Apply shared settings to all profiles in package
+• Distribute load across multiple numbers
+• Reduce blocking risk by spreading messages
+
+================================================================================
+                         DISTRIBUTION STRATEGIES
+================================================================================
+
+When sending OPEN CHAT messages to multiple recipients, how do we choose
+which profile sends to which recipient?
+Note: I need this will be an option in ui setting tab, which will be the 
+
+ROUND-ROBIN
+-----------
+• Evenly distributes recipients across all active profiles
+• Example: 100 recipients, 4 profiles = 25 each
+• Best for: Equal load balancing
+
+RANDOM
+------
+• Randomly assigns each recipient to a profile
+• Less predictable pattern (harder to detect as bulk)
+• Best for: Avoiding detection patterns
+
+WEIGHTED
+--------
+• Distributes based on profile weight/capacity
+• High-capacity profiles get more recipients
+• Best for: Optimizing delivery based on account health
+
+QUESTION: How do I set the weight of a profile? how to measure it? 
+
+
+SMART (INTELLIGENT)
+-------------------
+• Considers: profile health, hourly usage, daily limits
+• Automatically skips overloaded profiles
+• Best for: Production environments
+
+TASK: so here we need to now statistics of messages sent from each profile, and received messages and sent per hour and per day, and per last 3 hours, to know how to make it save, we must make a good parameters with minimum to be easy to keep it save, like total messages per day, maximum hour messages, maximum 3 hours messages, and others if you see others.
+
+================================================================================
+                         LIMITS & RESTRICTIONS
+================================================================================
+
+All limits are CONFIGURABLE and VISIBLE in the UI dashboard.
+
+PER-PROFILE LIMITS
+------------------
+• Max messages per hour (default: 20)
+• Max messages per day (default: 120)
+• Cooldown between messages 
+TASK:(default: will be calculated based on the limits, and will be random between min and max, I need to prevent any rush hours, so if the profile is sending messages fast, it should slow down, and if it is sending messages slow, it should speed up, but never exceed the limits, and also it should be random between min and max, so it will be not predictable, and it should be different for each profile, and it should be different for each message, and it should be different for each package)
+• Active hours window (e.g., 8 AM - 10 PM) 
+Detail: there is only 20 hours of work not 24 hours, so there is freezed time arround the day completed 4 hours.
+
+PER-PACKAGE LIMITS
+------------------
+• Total messages per day across speicial profile
+• Total messages per day across all profiles
+• Max concurrent sends 
+TASK:  tell me what does this means
+
+WAITING STRATEGIES (Open Chat Only)
+-----------------------------------
+• Immediate: Send right away (respecting limits)
+• Queued: Add to queue, process in order
+• Scheduled: Send at specific time
+• Drip: Spread over hours/days
+• Smart Timing: AI suggests best time per recipient
+
+VIP: I don't like to make this option for just delay! no the main idea is not dealy, it's preventing blocks, so we can make a good strategy which is : 
+• we can check how many wait time will be done as default in between each message, and we can make it random between min and max, so it will be not predictable, and it should be different for each profile, and it should be different for each message, and it should be different for each package
+   • if there is many (more than 10) waiting requests in the queue needs to be send a message, so there is a rush hour, we will send messages with more waiting time, if the defail minimum is 5 minutes, so it will be double, if there is less than 10 waiting requests in the queue needs to be send a message, so there is no rush hour, we will send messages with less waiting time, if the defail minimum is 5 minutes, so it will be half. NOTE: this must appear in the ui any thing of these parameters must appears in the ui.
+• if the last two hours there is less than the expected message to be sent, there is a shorter delay, if the last two hours there is more than the expected message to be sent, there is a longer delay. NOTE: this must appear in the ui any thing of these parameters must appears in the ui.
+
+UI DISPLAY
+----------
+All limits will be shown in real-time:
+┌─────────────────────────────────────────────────────────────┐
+│ Package: Marketing Campaign                                  │
+│ ─────────────────────────────────────────────────────────── │
+│ Profile 1: 45/50 hourly | 320/500 daily | ● Active          │
+│ Profile 2: 12/50 hourly | 89/500 daily  | ● Active          │
+│ Profile 3: 50/50 hourly | 500/500 daily | ○ Limit Reached   │
+│ Profile 4: 0/50 hourly  | 0/500 daily   | ● Available       │
+└─────────────────────────────────────────────────────────────┘
+
+================================================================================
+                         MESSAGE TYPES
+================================================================================
+
+SUPPORTED FORMATS
+-----------------
+• TEXT: Plain text messages
+• IMAGE: Image with optional caption
+• VOICE: Audio/voice notes
+• DOCUMENT: PDF, Excel, Word files
+• VIDEO: Video files
+
+================================================================================
+                         FUTURE FEATURE IDEAS
+================================================================================
+
+PHASE 1: CORE (MVP)
+-------------------
+[ ] Package CRUD (Create, Read, Update, Delete)
+[ ] Profile management within packages
+[ ] Basic message sending (text, image, voice)
+[ ] Simple distribution (round-robin)
+[ ] Open Chat vs Reply Chat separation
+[ ] Rate limiting
+
+PHASE 2: SMART FEATURES
+-----------------------
+[√] Automatic profile health monitoring
+[√] Smart routing based on engagement history
+[√] Retry failed messages with different profile
+[x] Conversation threading (keep same profile per customer)
+[x] Message templates
+[x] Scheduling with timezone support
+
+PHASE 3: ANALYTICS & MONITORING
+-------------------------------
+[x] Delivery success rates per profile
+[-] Block detection and alerts (BASED ON WHAT??)
+[√] Usage analytics dashboard
+[x] Export delivery reports
+[x] Real-time message status updates
+
+PHASE 4: ADVANCED
+-----------------
+[x] A/B testing message variations
+[x] Bulk recipient import (CSV, Excel)
+[x] Webhook notifications for delivery status
+[√] API for third-party integrations
+[x] Customer conversation history
+[x] Auto-failover to backup profiles
+
+PHASE 5: INTELLIGENCE
+---------------------
+[x] Predict optimal send times
+[√] Detect high-risk sending patterns (BASED ON WHAT??)
+[-] Auto-adjust limits based on block rates (BASED ON WHAT??)
+[x] Sentiment analysis on replies
+[x] Smart message personalization
+
+================================================================================
+                         API USAGE EXAMPLES
+================================================================================
+
+EXAMPLE 1: Send Open Chat (Marketing Campaign)
+----------------------------------------------
+POST /api/v1/packages/{pkg_id}/messages/open
+{
+  "type": "text",
+  "text": "Hello! Check out our new offers...",
+  "recipients": ["201xxxxx", "201yyyyy", "201zzzzz"],
+  "distribution": "round_robin",
+  "options": {
+    "schedule_at": "2024-02-10T10:00:00Z",
+    "waiting_strategy": "drip",
+    "drip_interval_minutes": 5
+  }
+}
+
+Response:
+{
+  "message_id": "msg_abc123",
+  "status": "queued",
+  "estimated_completion": "2024-02-10T10:15:00Z",
+  "distribution": {
+    "profile_1": 1,
+    "profile_2": 1,
+    "profile_3": 1
+  },
+  "limits_status": {
+    "profile_1": {"hourly": "45/50", "daily": "320/500"},
+    "profile_2": {"hourly": "12/50", "daily": "89/500"},
+    "profile_3": {"hourly": "22/50", "daily": "156/500"}
+  }
+}
+
+EXAMPLE 2: Send Reply Chat (Immediate Response)
+-----------------------------------------------
+POST /api/v1/packages/{pkg_id}/messages/reply
+{
+  "type": "text",
+  "text": "Thank you for your order! It will be delivered tomorrow.",
+  "recipient": "201xxxxx",
+  "conversation_id": "conv_xyz789"
+}
+
+Response:
+{
+  "message_id": "msg_def456",
+  "status": "sent",
+  "sent_at": "2024-02-08T18:45:12Z",
+  "profile_used": "profile_2",
+  "note": "Reply messages bypass all limits"
+}
+
+### VIP: Send Reply Chat (Immediate Response): IN THIS CASE WE MUST DETECT THIS RECEPEINT RELATED TO WHICH PROFILE, AND THEN SEND THE MESSAGE FROM THAT PROFILE. 
+================================================================================
+                         BLOCKING PREVENTION STRATEGIES
+================================================================================
+
+WHY DO ACCOUNTS GET BLOCKED?
+----------------------------
+• Sending too many messages too fast
+• Sending to numbers that haven't opted in
+• Recipients reporting as spam
+• Unnatural sending patterns (same message, same time)
+
+HOW WE PREVENT BLOCKING
+-----------------------
+1. MESSAGE SPREADING
+   - Never send all messages from one account
+   - Distribute across multiple profiles
+2. RATE LIMITING
+   - Configurable hourly/daily limits per profile
+   - Automatic cooldowns between messages
+
+3. HUMANIZATION
+   - Random delays between messages
+   - Variable message timing
+   - Natural sending patterns
+
+4. HEALTH MONITORING
+   - Detect early warning signs
+   - Auto-pause risky profiles
+   - Alert before full block
+
+5. SMART ROUTING
+   - Use healthy profiles first
+   - Skip profiles near limits
+   - Failover to backup profiles
+================================================================================
