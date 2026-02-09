@@ -16,6 +16,7 @@ import { Progress } from "@/components/ui/progress";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import DashboardLayout from "@/components/DashboardLayout";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { packagesApi, profilesApi } from "@/lib/api";
 import { useApi, usePolling } from "@/hooks/useApi";
 import { toast } from "sonner";
@@ -265,6 +266,43 @@ export default function PackageDetail() {
           <TabsContent value="limits">
             <Card className="border-glow bg-card/80">
               <CardContent className="p-6">
+                {/* Distribution Mode Selector */}
+                <div className="mb-6 p-4 rounded-lg bg-secondary/20 border border-border/50">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="text-xs font-mono text-primary uppercase tracking-wider mb-1">Distribution Strategy</h4>
+                      <p className="text-[11px] text-muted-foreground">
+                        {pkg.distribution_mode === "round_robin" && "Evenly distributes messages across all active profiles in rotation."}
+                        {pkg.distribution_mode === "random" && "Randomly assigns each message to an available profile."}
+                        {pkg.distribution_mode === "weighted" && "Distributes proportionally based on each profile's weight score."}
+                        {pkg.distribution_mode === "smart" && "AI-driven: considers health, risk, capacity, and success rate for optimal routing."}
+                      </p>
+                    </div>
+                    <Select
+                      value={pkg.distribution_mode}
+                      onValueChange={async (mode) => {
+                        try {
+                          await packagesApi.update(packageId, { distribution_mode: mode });
+                          toast.success(`Distribution mode changed to ${mode}`);
+                          refetch();
+                        } catch (err: any) {
+                          toast.error(err.message);
+                        }
+                      }}
+                    >
+                      <SelectTrigger className="w-[160px] bg-secondary/30 h-8 text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="bg-popover border-border">
+                        <SelectItem value="round_robin">Round Robin</SelectItem>
+                        <SelectItem value="random">Random</SelectItem>
+                        <SelectItem value="weighted">Weighted</SelectItem>
+                        <SelectItem value="smart">Smart (AI)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-4">
                     <h4 className="text-xs font-mono text-primary uppercase tracking-wider">Rate Limits</h4>
@@ -369,8 +407,9 @@ export default function PackageDetail() {
             <DialogDescription className="text-xs text-muted-foreground">{healthData?.profile_name}</DialogDescription>
           </DialogHeader>
           {healthData && (
-            <div className="space-y-4 py-2">
-              <div className="grid grid-cols-3 gap-3 text-center">
+            <div className="space-y-4 py-2 max-h-[70vh] overflow-y-auto">
+              {/* Top scores */}
+              <div className="grid grid-cols-4 gap-2 text-center">
                 <div className="rounded-md bg-secondary/30 p-3">
                   <p className="text-xl font-bold font-mono text-emerald">{healthData.health_score}</p>
                   <p className="text-[10px] text-muted-foreground">Health</p>
@@ -383,8 +422,86 @@ export default function PackageDetail() {
                   <p className="text-xl font-bold font-mono text-primary">{healthData.weight_score}</p>
                   <p className="text-[10px] text-muted-foreground">Weight</p>
                 </div>
+                <div className="rounded-md bg-secondary/30 p-3">
+                  <Badge className={`text-[10px] ${healthData.risk_level === "high" ? "bg-coral/15 text-coral" : healthData.risk_level === "medium" ? "bg-amber-warn/15 text-amber-warn" : "bg-emerald/15 text-emerald"}`}>
+                    {healthData.risk_level || "low"} risk
+                  </Badge>
+                  <p className="text-[10px] text-muted-foreground mt-1">Level</p>
+                </div>
               </div>
 
+              {/* Limits Usage */}
+              {healthData.limits_usage && (
+                <div className="space-y-2">
+                  <h4 className="text-xs font-mono text-cyan uppercase">Limits Usage</h4>
+                  {Object.entries(healthData.limits_usage).map(([key, val]: any) => (
+                    <div key={key} className="space-y-1">
+                      <div className="flex justify-between text-[10px]">
+                        <span className="text-muted-foreground capitalize">{key.replace(/_/g, " ")}</span>
+                        <span className="font-mono text-muted-foreground">{val.used}/{val.limit} ({val.pct}%)</span>
+                      </div>
+                      <Progress value={val.pct} className="h-1.5" />
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Statistics */}
+              {healthData.statistics && (
+                <div className="space-y-2">
+                  <h4 className="text-xs font-mono text-primary uppercase">Statistics</h4>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {Object.entries(healthData.statistics).map(([key, val]: any) => (
+                      <div key={key} className="flex justify-between text-xs rounded-md bg-secondary/20 px-3 py-1.5">
+                        <span className="text-muted-foreground">{key.replace(/_/g, " ")}</span>
+                        <span className="font-mono text-foreground">{typeof val === "number" ? (Number.isInteger(val) ? val : val.toFixed(1)) : val}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Weight Breakdown */}
+              <div className="space-y-2">
+                <h4 className="text-xs font-mono text-primary uppercase">Weight Breakdown</h4>
+                {healthData.weight_breakdown && Object.entries(healthData.weight_breakdown).map(([key, val]: any) => (
+                  <div key={key} className="flex justify-between text-xs rounded-md bg-secondary/20 px-3 py-1.5">
+                    <span className="text-muted-foreground">{key.replace(/_/g, " ")}</span>
+                    <span className="font-mono text-foreground">{typeof val === "number" ? val.toFixed(2) : val}</span>
+                  </div>
+                ))}
+              </div>
+
+              {/* Risk Breakdown */}
+              {healthData.risk_breakdown?.patterns?.length > 0 && (
+                <div className="space-y-2">
+                  <h4 className="text-xs font-mono text-coral uppercase">Risk Patterns</h4>
+                  {healthData.risk_breakdown.patterns.map((pattern: any, i: number) => (
+                    <div key={i} className="rounded-md bg-coral/5 border border-coral/20 p-2.5">
+                      <div className="flex justify-between items-center mb-1">
+                        <span className="text-xs font-semibold text-foreground">{pattern.pattern || pattern.name}</span>
+                        <Badge className="bg-coral/15 text-coral text-[10px]">{pattern.score || pattern.risk_score}</Badge>
+                      </div>
+                      {pattern.recommendation && <p className="text-[11px] text-muted-foreground">{pattern.recommendation}</p>}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Block Indicators */}
+              {healthData.block_indicators?.length > 0 && (
+                <div className="space-y-2">
+                  <h4 className="text-xs font-mono text-coral uppercase">Block Indicators</h4>
+                  {healthData.block_indicators.map((indicator: any, i: number) => (
+                    <div key={i} className="flex items-start gap-2 rounded-md bg-coral/5 border border-coral/20 p-2.5">
+                      <AlertTriangle className="h-3.5 w-3.5 text-coral mt-0.5 shrink-0" />
+                      <p className="text-xs text-foreground">{typeof indicator === "string" ? indicator : indicator.description || indicator.indicator}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Recommendations */}
               {healthData.recommendations?.length > 0 && (
                 <div className="space-y-2">
                   <h4 className="text-xs font-mono text-amber-warn uppercase">Recommendations</h4>
@@ -396,16 +513,6 @@ export default function PackageDetail() {
                   ))}
                 </div>
               )}
-
-              <div className="space-y-2">
-                <h4 className="text-xs font-mono text-primary uppercase">Weight Breakdown</h4>
-                {healthData.weight_breakdown && Object.entries(healthData.weight_breakdown).map(([key, val]: any) => (
-                  <div key={key} className="flex justify-between text-xs rounded-md bg-secondary/20 px-3 py-1.5">
-                    <span className="text-muted-foreground">{key.replace(/_/g, " ")}</span>
-                    <span className="font-mono text-foreground">{val}</span>
-                  </div>
-                ))}
-              </div>
             </div>
           )}
         </DialogContent>
