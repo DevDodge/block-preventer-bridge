@@ -224,11 +224,14 @@ class MessageService:
         # Update conversation routing
         if routing:
             routing.last_interaction_at = datetime.now(timezone.utc)
+            # Ensure the profile is still the same (it should be, but just in case)
+            routing.assigned_profile_id = profile.id
         else:
             new_routing = ConversationRouting(
                 package_id=package_id,
                 customer_phone=recipient,
-                assigned_profile_id=profile.id
+                assigned_profile_id=profile.id,
+                last_interaction_at=datetime.now(timezone.utc)
             )
             self.db.add(new_routing)
         
@@ -343,28 +346,31 @@ class MessageService:
             item.status = "sent"
             item.sent_at = datetime.now(timezone.utc)
             
-            # Update conversation routing
-            routing_result = await self.db.execute(
-                select(ConversationRouting).where(
-                    ConversationRouting.customer_phone == item.recipient,
-                    ConversationRouting.package_id == (
-                        select(Message.package_id).where(Message.id == item.message_id).scalar_subquery()
+            # Update conversation routing (sticky routing for future replies)
+            msg_result = await self.db.execute(
+                select(Message.package_id).where(Message.id == item.message_id)
+            )
+            pkg_id = msg_result.scalar_one_or_none()
+            
+            if pkg_id:
+                routing_result = await self.db.execute(
+                    select(ConversationRouting).where(
+                        ConversationRouting.customer_phone == item.recipient,
+                        ConversationRouting.package_id == pkg_id
                     )
                 )
-            )
-            routing = routing_result.scalar_one_or_none()
-            if not routing:
-                msg_result = await self.db.execute(
-                    select(Message.package_id).where(Message.id == item.message_id)
-                )
-                pkg_id = msg_result.scalar_one_or_none()
-                if pkg_id:
+                routing = routing_result.scalar_one_or_none()
+                if not routing:
                     new_routing = ConversationRouting(
                         package_id=pkg_id,
                         customer_phone=item.recipient,
-                        assigned_profile_id=item.profile_id
+                        assigned_profile_id=item.profile_id,
+                        last_interaction_at=datetime.now(timezone.utc)
                     )
                     self.db.add(new_routing)
+                else:
+                    routing.last_interaction_at = datetime.now(timezone.utc)
+                    routing.assigned_profile_id = item.profile_id
         else:
             if item.attempt_count >= item.max_attempts:
                 item.status = "failed"
@@ -398,6 +404,18 @@ class MessageService:
         
         # Update profile last_message_at
         profile.last_message_at = datetime.now(timezone.utc)
+        
+        # Perform block detection check if failure occurred
+        if not result["success"]:
+            from app.services.block_detection_service import BlockDetectionService
+            from app.models.models import Package
+            
+            pkg_result = await self.db.execute(select(Package).where(Package.id == profile.package_id))
+            package = pkg_result.scalar_one_or_none()
+            
+            if package:
+                block_service = BlockDetectionService(self.db)
+                await block_service.check_profile_for_blocks(profile, package)
         
         await self.db.flush()
     

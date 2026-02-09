@@ -107,15 +107,30 @@ class ProfileService:
         return profile
     
     async def get_health(self, profile_id: UUID) -> dict:
-        """Get comprehensive health report for a profile."""
-        profile = await self.get_profile(profile_id)
+        """Get comprehensive health report for a profile using advanced services."""
+        result = await self.db.execute(
+            select(Profile)
+            .options(selectinload(Profile.package), selectinload(Profile.statistics))
+            .where(Profile.id == profile_id)
+        )
+        profile = result.scalar_one_or_none()
         if not profile:
             return None
         
-        # Calculate weight and risk
-        weight_breakdown = await self.weight_service.calculate_weight(profile)
-        risk_breakdown = await self.weight_service.calculate_risk(profile)
+        # 1. Calculate latest weight
+        weight_info = await self.weight_service.calculate_weight(profile)
         
+        # 2. Advanced Risk Analysis
+        from app.services.risk_pattern_service import RiskPatternService
+        risk_service = RiskPatternService(self.db)
+        risk_analysis = await risk_service.analyze_patterns(profile, profile.package)
+        
+        # 3. Block Indicator Check
+        from app.services.block_detection_service import BlockDetectionService
+        block_service = BlockDetectionService(self.db)
+        block_check = await block_service.check_profile_for_blocks(profile, profile.package)
+        
+        # 4. Statistics
         stats = profile.statistics
         stats_data = {
             "messages_sent_total": stats.messages_sent_total if stats else 0,
@@ -131,44 +146,36 @@ class ProfileService:
             "cooldown_mode": stats.cooldown_mode if stats else "normal"
         }
         
-        # Get package for limits
-        pkg_result = await self.db.execute(
-            select(Package).where(Package.id == profile.package_id)
-        )
-        package = pkg_result.scalar_one_or_none()
+        # 5. Determine limits usage
+        package = profile.package
+        limits_usage = {
+            "hourly": {"used": stats_data["messages_sent_hour"], "limit": package.max_messages_per_hour, "pct": round(stats_data["messages_sent_hour"] / max(package.max_messages_per_hour, 1) * 100, 1)},
+            "three_hour": {"used": stats_data["messages_sent_3hours"], "limit": package.max_messages_per_3hours, "pct": round(stats_data["messages_sent_3hours"] / max(package.max_messages_per_3hours, 1) * 100, 1)},
+            "daily": {"used": stats_data["messages_sent_today"], "limit": package.max_messages_per_day, "pct": round(stats_data["messages_sent_today"] / max(package.max_messages_per_day, 1) * 100, 1)}
+        }
         
-        limits_usage = {}
-        if package:
-            sent_hour = stats.messages_sent_hour if stats else 0
-            sent_3h = stats.messages_sent_3hours if stats else 0
-            sent_day = stats.messages_sent_today if stats else 0
-            limits_usage = {
-                "hourly": {"used": sent_hour, "limit": package.max_messages_per_hour, "pct": round(sent_hour / max(package.max_messages_per_hour, 1) * 100, 1)},
-                "three_hour": {"used": sent_3h, "limit": package.max_messages_per_3hours, "pct": round(sent_3h / max(package.max_messages_per_3hours, 1) * 100, 1)},
-                "daily": {"used": sent_day, "limit": package.max_messages_per_day, "pct": round(sent_day / max(package.max_messages_per_day, 1) * 100, 1)}
-            }
+        # 6. Generate Recommendations
+        recommendations = [p["recommendation"] for p in risk_analysis.get("patterns", [])]
+        if not recommendations:
+            recommendations = ["Profile health is optimal. Maintain current patterns."]
         
-        # Generate recommendations
-        recommendations = []
-        if risk_breakdown["total_risk"] > 50:
-            recommendations.append("High risk detected. Consider pausing this profile temporarily.")
+        # Additional logic-based recommendations
         if stats_data["success_rate_24h"] < 90:
             recommendations.append("Success rate is below 90%. Check for delivery issues.")
         if stats_data["failed_messages_today"] > 3:
             recommendations.append("Multiple failures detected today. Monitor closely.")
-        if weight_breakdown["total_weight"] < 10:
-            recommendations.append("Low weight score. This profile will receive fewer messages.")
         
         return {
             "profile_id": str(profile.id),
             "profile_name": profile.name,
             "status": profile.status,
             "health_score": profile.health_score,
-            "risk_score": profile.risk_score,
-            "risk_level": risk_breakdown["risk_level"],
+            "risk_score": risk_analysis.get("total_risk_score", 0),
+            "risk_level": risk_analysis.get("risk_level", "low"),
             "weight_score": profile.weight_score,
-            "weight_breakdown": weight_breakdown,
-            "risk_breakdown": risk_breakdown,
+            "weight_breakdown": weight_info,
+            "risk_breakdown": risk_analysis,
+            "block_indicators": block_check.get("indicators", []),
             "statistics": stats_data,
             "limits_usage": limits_usage,
             "recommendations": recommendations

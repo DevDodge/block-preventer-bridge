@@ -21,6 +21,7 @@ import {
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { alertsApi } from "@/lib/api";
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -42,10 +43,20 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const [alertCount, setAlertCount] = useState(0);
 
   useEffect(() => {
-    fetch("/api/v1/alerts?unread_only=true")
-      .then(r => r.ok ? r.json() : [])
-      .then(data => setAlertCount(Array.isArray(data) ? data.length : 0))
-      .catch(() => setAlertCount(0));
+    const fetchAlertCount = async () => {
+      try {
+        const data = await alertsApi.count();
+        setAlertCount(data.unread_count || 0);
+      } catch (err) {
+        console.error("Failed to fetch alert count", err);
+        setAlertCount(0);
+      }
+    };
+
+    fetchAlertCount();
+    // Poll for new alerts every 30 seconds
+    const interval = setInterval(fetchAlertCount, 30000);
+    return () => clearInterval(interval);
   }, [location]);
 
   return (
@@ -95,6 +106,9 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                       )}
                     >
                       <Icon className="h-4 w-4" />
+                      {item.label === "Alerts" && alertCount > 0 && (
+                        <div className="absolute top-2 right-2 h-2 w-2 rounded-full bg-destructive" />
+                      )}
                     </div>
                   </Link>
                 </TooltipTrigger>
@@ -116,7 +130,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                   <span className="truncate">{item.label}</span>
                   {item.label === "Alerts" && alertCount > 0 && (
                     <Badge variant="destructive" className="ml-auto h-5 px-1.5 text-[10px]">
-                      {alertCount}
+                      {alertCount > 99 ? "99+" : alertCount}
                     </Badge>
                   )}
                 </div>

@@ -63,9 +63,17 @@ export const messagesApi = {
     request<any>(`/packages/${packageId}/messages/open`, { method: "POST", body: JSON.stringify(data) }),
   sendReply: (packageId: string, data: any) =>
     request<any>(`/packages/${packageId}/messages/reply`, { method: "POST", body: JSON.stringify(data) }),
+  schedule: (packageId: string, data: any) =>
+    request<any>(`/packages/${packageId}/messages/schedule`, { method: "POST", body: JSON.stringify(data) }),
+  listScheduled: (packageId: string) => request<any[]>(`/packages/${packageId}/messages/scheduled`),
+  cancelScheduled: (packageId: string, messageId: string) =>
+    request<any>(`/packages/${packageId}/messages/${messageId}/cancel`, { method: "DELETE" }),
   queueStatus: (packageId: string) => request<any>(`/packages/${packageId}/queue`),
   analytics: (packageId: string, days?: number) =>
     request<any>(`/packages/${packageId}/analytics?days=${days || 7}`),
+  checkBlocks: (packageId: string) => request<any[]>(`/packages/${packageId}/block-check`),
+  riskPatterns: (packageId: string, profileId: string) =>
+    request<any>(`/packages/${packageId}/profiles/${profileId}/risk-patterns`),
 };
 
 // ========== ALERTS ==========
@@ -76,10 +84,17 @@ export const alertsApi = {
     if (unreadOnly) query.set("unread_only", "true");
     return request<any[]>(`/alerts?${query.toString()}`);
   },
+  count: () => request<any>("/alerts/count"),
   markRead: (alertId: string) => request<any>(`/alerts/${alertId}/read`, { method: "PATCH" }),
+  markAllRead: (packageId?: string) => {
+    const query = packageId ? `?package_id=${packageId}` : "";
+    return request<any>(`/alerts/read-all${query}`, { method: "PATCH" });
+  },
 };
 
-// ========== SYSTEM ==========
+// ========== SYSTEM / SETTINGS ==========
 export const systemApi = {
   health: () => fetch("/health").then((r) => r.json()),
+  getSettings: () => request<any>("/settings"),
+  updateSettings: (data: any) => request<any>("/settings", { method: "PUT", body: JSON.stringify(data) }),
 };
