@@ -4,7 +4,7 @@
 import { useState } from "react";
 import { useParams, Link } from "wouter";
 import {
-  Package, Users, Plus, ArrowLeft, Activity, Shield, Zap,
+  Package, Users, Plus, ArrowLeft, Activity, Shield, Zap, Settings,
   MessageSquare, Trash2, Play, Pause, Eye, Heart, AlertTriangle
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -32,6 +32,9 @@ export default function PackageDetail() {
   const [healthData, setHealthData] = useState<any>(null);
   const [showEditSettings, setShowEditSettings] = useState(false);
   const [settingsForm, setSettingsForm] = useState<any>({});
+  const [showProfileSettings, setShowProfileSettings] = useState(false);
+  const [profileSettingsForm, setProfileSettingsForm] = useState<any>({});
+  const [editingProfileId, setEditingProfileId] = useState<string>("");
 
   const [profileForm, setProfileForm] = useState({
     name: "", phone_number: "", zentra_uuid: "", zentra_api_token: "",
@@ -105,6 +108,51 @@ export default function PackageDetail() {
       await packagesApi.update(packageId, settingsForm);
       toast.success("Settings updated successfully");
       setShowEditSettings(false);
+      refetch();
+    } catch (err: any) {
+      toast.error(err.message);
+    }
+  };
+
+  const openProfileSettings = (profile: any) => {
+    setEditingProfileId(profile.id);
+    setProfileSettingsForm({
+      name: profile.name,
+      manual_priority: profile.manual_priority,
+      account_age_months: profile.account_age_months,
+      max_messages_per_hour: profile.max_messages_per_hour ?? "",
+      max_messages_per_3hours: profile.max_messages_per_3hours ?? "",
+      max_messages_per_day: profile.max_messages_per_day ?? "",
+    });
+    setShowProfileSettings(true);
+  };
+
+  const handleSaveProfileSettings = async () => {
+    try {
+      const payload: any = {
+        name: profileSettingsForm.name,
+        manual_priority: profileSettingsForm.manual_priority,
+        account_age_months: profileSettingsForm.account_age_months,
+      };
+      // Only send rate limits if they have a value (empty string = use package default = null)
+      if (profileSettingsForm.max_messages_per_hour !== "" && profileSettingsForm.max_messages_per_hour !== null) {
+        payload.max_messages_per_hour = Number(profileSettingsForm.max_messages_per_hour);
+      } else {
+        payload.max_messages_per_hour = null;
+      }
+      if (profileSettingsForm.max_messages_per_3hours !== "" && profileSettingsForm.max_messages_per_3hours !== null) {
+        payload.max_messages_per_3hours = Number(profileSettingsForm.max_messages_per_3hours);
+      } else {
+        payload.max_messages_per_3hours = null;
+      }
+      if (profileSettingsForm.max_messages_per_day !== "" && profileSettingsForm.max_messages_per_day !== null) {
+        payload.max_messages_per_day = Number(profileSettingsForm.max_messages_per_day);
+      } else {
+        payload.max_messages_per_day = null;
+      }
+      await profilesApi.update(packageId, editingProfileId, payload);
+      toast.success("Profile settings updated");
+      setShowProfileSettings(false);
       refetch();
     } catch (err: any) {
       toast.error(err.message);
@@ -197,89 +245,106 @@ export default function PackageDetail() {
 
             {pkg.profiles && pkg.profiles.length > 0 ? (
               <div className="space-y-3">
-                {pkg.profiles.map((profile: any, i: number) => (
-                  <motion.div key={profile.id} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.03 }}>
-                    <Card className="border-glow-hover bg-card/80">
-                      <CardContent className="p-4">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-4">
-                            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-cyan/10 border border-cyan/20">
-                              <Users className="h-5 w-5 text-cyan" />
-                            </div>
-                            <div>
-                              <div className="flex items-center gap-2">
-                                <p className="text-sm font-semibold text-foreground">{profile.name}</p>
-                                <Badge className={
-                                  profile.status === "active" ? "bg-emerald/15 text-emerald border-emerald/30 text-[10px]" :
-                                  profile.status === "paused" ? "bg-amber-warn/15 text-amber-warn border-amber-warn/30 text-[10px]" :
-                                  "bg-secondary text-muted-foreground text-[10px]"
-                                }>{profile.status}</Badge>
-                              </div>
-                              <p className="text-xs text-muted-foreground">{profile.phone_number || "No phone"} · Priority: {profile.manual_priority}</p>
-                            </div>
-                          </div>
+                {pkg.profiles.map((profile: any, i: number) => {
+                  // Use per-profile limits if set, otherwise package defaults
+                  const effHourly = profile.max_messages_per_hour ?? pkg.max_messages_per_hour;
+                  const eff3Hours = profile.max_messages_per_3hours ?? pkg.max_messages_per_3hours;
+                  const effDaily = profile.max_messages_per_day ?? pkg.max_messages_per_day;
+                  const hasCustomLimits = profile.max_messages_per_hour != null || profile.max_messages_per_3hours != null || profile.max_messages_per_day != null;
 
-                          <div className="flex items-center gap-6">
-                            {/* Stats */}
-                            <div className="hidden sm:grid grid-cols-4 gap-4 text-center">
-                              <div>
-                                <p className="text-sm font-mono font-bold text-foreground">{profile.weight_score}</p>
-                                <p className="text-[9px] text-muted-foreground uppercase">Weight</p>
+                  return (
+                    <motion.div key={profile.id} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.03 }}>
+                      <Card className="border-glow-hover bg-card/80">
+                        <CardContent className="p-4">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-4">
+                              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-cyan/10 border border-cyan/20">
+                                <Users className="h-5 w-5 text-cyan" />
                               </div>
                               <div>
-                                <p className="text-sm font-mono font-bold text-foreground">{profile.health_score}</p>
-                                <p className="text-[9px] text-muted-foreground uppercase">Health</p>
-                              </div>
-                              <div>
-                                <p className={`text-sm font-mono font-bold ${profile.risk_score > 50 ? "text-coral" : profile.risk_score > 20 ? "text-amber-warn" : "text-emerald"}`}>
-                                  {profile.risk_score}
-                                </p>
-                                <p className="text-[9px] text-muted-foreground uppercase">Risk</p>
-                              </div>
-                              <div>
-                                <p className="text-sm font-mono font-bold text-foreground">{profile.messages_sent_today}</p>
-                                <p className="text-[9px] text-muted-foreground uppercase">Today</p>
-                              </div>
-                            </div>
-
-                            {/* Actions */}
-                            <div className="flex items-center gap-1">
-                              <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => viewHealth(profile.id)} title="View Health">
-                                <Heart className="h-3.5 w-3.5 text-muted-foreground hover:text-primary" />
-                              </Button>
-                              <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => handleToggleStatus(profile.id, profile.status)} title={profile.status === "active" ? "Pause" : "Resume"}>
-                                {profile.status === "active" ? <Pause className="h-3.5 w-3.5 text-muted-foreground hover:text-amber-warn" /> : <Play className="h-3.5 w-3.5 text-muted-foreground hover:text-emerald" />}
-                              </Button>
-                              <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => handleDeleteProfile(profile.id)} title="Remove">
-                                <Trash2 className="h-3.5 w-3.5 text-muted-foreground hover:text-destructive" />
-                              </Button>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Usage bars */}
-                        <div className="grid grid-cols-3 gap-3 mt-4">
-                          {[
-                            { label: "Hourly", used: profile.messages_sent_hour, max: pkg.max_messages_per_hour },
-                            { label: "3-Hour", used: profile.messages_sent_3hours, max: pkg.max_messages_per_3hours },
-                            { label: "Daily", used: profile.messages_sent_today, max: pkg.max_messages_per_day },
-                          ].map((bar) => {
-                            const pct = Math.min(100, (bar.used / Math.max(bar.max, 1)) * 100);
-                            return (
-                              <div key={bar.label} className="space-y-1">
-                                <div className="flex justify-between text-[10px]">
-                                  <span className="text-muted-foreground">{bar.label}</span>
-                                  <span className="font-mono text-muted-foreground">{bar.used}/{bar.max}</span>
+                                <div className="flex items-center gap-2">
+                                  <p className="text-sm font-semibold text-foreground">{profile.name}</p>
+                                  <Badge className={
+                                    profile.status === "active" ? "bg-emerald/15 text-emerald border-emerald/30 text-[10px]" :
+                                    profile.status === "paused" ? "bg-amber-warn/15 text-amber-warn border-amber-warn/30 text-[10px]" :
+                                    "bg-secondary text-muted-foreground text-[10px]"
+                                  }>{profile.status}</Badge>
+                                  {hasCustomLimits && (
+                                    <Badge variant="outline" className="border-cyan/30 text-cyan text-[9px]">Custom Limits</Badge>
+                                  )}
                                 </div>
-                                <Progress value={pct} className="h-1.5" />
+                                <p className="text-xs text-muted-foreground">{profile.phone_number || "No phone"} · Priority: {profile.manual_priority}</p>
                               </div>
-                            );
-                          })}
-                        </div>
-                      </CardContent>
-                    </Card>
-                  </motion.div>
-                ))}
+                            </div>
+
+                            <div className="flex items-center gap-6">
+                              {/* Stats */}
+                              <div className="hidden sm:grid grid-cols-4 gap-4 text-center">
+                                <div>
+                                  <p className="text-sm font-mono font-bold text-foreground">{profile.weight_score}</p>
+                                  <p className="text-[9px] text-muted-foreground uppercase">Weight</p>
+                                </div>
+                                <div>
+                                  <p className="text-sm font-mono font-bold text-foreground">{profile.health_score}</p>
+                                  <p className="text-[9px] text-muted-foreground uppercase">Health</p>
+                                </div>
+                                <div>
+                                  <p className={`text-sm font-mono font-bold ${profile.risk_score > 50 ? "text-coral" : profile.risk_score > 20 ? "text-amber-warn" : "text-emerald"}`}>
+                                    {profile.risk_score}
+                                  </p>
+                                  <p className="text-[9px] text-muted-foreground uppercase">Risk</p>
+                                </div>
+                                <div>
+                                  <p className="text-sm font-mono font-bold text-foreground">{profile.messages_sent_today}</p>
+                                  <p className="text-[9px] text-muted-foreground uppercase">Today</p>
+                                </div>
+                              </div>
+
+                              {/* Actions */}
+                              <div className="flex items-center gap-1">
+                                <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => openProfileSettings(profile)} title="Profile Settings">
+                                  <Settings className="h-3.5 w-3.5 text-muted-foreground hover:text-cyan" />
+                                </Button>
+                                <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => viewHealth(profile.id)} title="View Health">
+                                  <Heart className="h-3.5 w-3.5 text-muted-foreground hover:text-primary" />
+                                </Button>
+                                <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => handleToggleStatus(profile.id, profile.status)} title={profile.status === "active" ? "Pause" : "Resume"}>
+                                  {profile.status === "active" ? <Pause className="h-3.5 w-3.5 text-muted-foreground hover:text-amber-warn" /> : <Play className="h-3.5 w-3.5 text-muted-foreground hover:text-emerald" />}
+                                </Button>
+                                <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => handleDeleteProfile(profile.id)} title="Remove">
+                                  <Trash2 className="h-3.5 w-3.5 text-muted-foreground hover:text-destructive" />
+                                </Button>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Usage bars - using effective per-profile limits */}
+                          <div className="grid grid-cols-3 gap-3 mt-4">
+                            {[
+                              { label: "Hourly", used: profile.messages_sent_hour, max: effHourly, custom: profile.max_messages_per_hour != null },
+                              { label: "3-Hour", used: profile.messages_sent_3hours, max: eff3Hours, custom: profile.max_messages_per_3hours != null },
+                              { label: "Daily", used: profile.messages_sent_today, max: effDaily, custom: profile.max_messages_per_day != null },
+                            ].map((bar) => {
+                              const pct = Math.min(100, (bar.used / Math.max(bar.max, 1)) * 100);
+                              return (
+                                <div key={bar.label} className="space-y-1">
+                                  <div className="flex justify-between text-[10px]">
+                                    <span className="text-muted-foreground">
+                                      {bar.label}
+                                      {bar.custom && <span className="text-cyan ml-1">*</span>}
+                                    </span>
+                                    <span className="font-mono text-muted-foreground">{bar.used}/{bar.max}</span>
+                                  </div>
+                                  <Progress value={pct} className="h-1.5" />
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </motion.div>
+                  );
+                })}
               </div>
             ) : (
               <Card className="border-glow bg-card/80">
@@ -436,6 +501,82 @@ export default function PackageDetail() {
         </DialogContent>
       </Dialog>
 
+      {/* Profile Settings Dialog */}
+      <Dialog open={showProfileSettings} onOpenChange={setShowProfileSettings}>
+        <DialogContent className="bg-card border-border max-w-md">
+          <DialogHeader>
+            <DialogTitle className="font-mono flex items-center gap-2"><Settings className="h-4 w-4 text-cyan" /> Profile Settings</DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground">
+              Set per-profile rate limits. Leave empty to use package defaults.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            {/* Basic Info */}
+            <div className="space-y-3">
+              <h4 className="text-xs font-mono text-primary uppercase tracking-wider">Basic Info</h4>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Profile Name</Label>
+                <Input value={profileSettingsForm.name || ""} onChange={(e) => setProfileSettingsForm({ ...profileSettingsForm, name: e.target.value })} className="bg-secondary/30" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Priority (1-10)</Label>
+                  <Input type="number" min={1} max={10} value={profileSettingsForm.manual_priority} onChange={(e) => setProfileSettingsForm({ ...profileSettingsForm, manual_priority: +e.target.value })} className="bg-secondary/30 font-mono" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Account Age (months)</Label>
+                  <Input type="number" min={0} value={profileSettingsForm.account_age_months} onChange={(e) => setProfileSettingsForm({ ...profileSettingsForm, account_age_months: +e.target.value })} className="bg-secondary/30 font-mono" />
+                </div>
+              </div>
+            </div>
+
+            {/* Per-Profile Rate Limits */}
+            <div className="space-y-3">
+              <h4 className="text-xs font-mono text-cyan uppercase tracking-wider">Rate Limits (Override Package)</h4>
+              <p className="text-[10px] text-muted-foreground">
+                Leave empty to use package defaults ({pkg?.max_messages_per_hour}/hr, {pkg?.max_messages_per_3hours}/3hr, {pkg?.max_messages_per_day}/day)
+              </p>
+              <div className="space-y-2">
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Messages per Hour</Label>
+                  <Input
+                    type="number" min={1}
+                    value={profileSettingsForm.max_messages_per_hour}
+                    onChange={(e) => setProfileSettingsForm({ ...profileSettingsForm, max_messages_per_hour: e.target.value === "" ? "" : +e.target.value })}
+                    placeholder={`Package default: ${pkg?.max_messages_per_hour}`}
+                    className="bg-secondary/30 font-mono"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Messages per 3 Hours</Label>
+                  <Input
+                    type="number" min={1}
+                    value={profileSettingsForm.max_messages_per_3hours}
+                    onChange={(e) => setProfileSettingsForm({ ...profileSettingsForm, max_messages_per_3hours: e.target.value === "" ? "" : +e.target.value })}
+                    placeholder={`Package default: ${pkg?.max_messages_per_3hours}`}
+                    className="bg-secondary/30 font-mono"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Messages per Day</Label>
+                  <Input
+                    type="number" min={1}
+                    value={profileSettingsForm.max_messages_per_day}
+                    onChange={(e) => setProfileSettingsForm({ ...profileSettingsForm, max_messages_per_day: e.target.value === "" ? "" : +e.target.value })}
+                    placeholder={`Package default: ${pkg?.max_messages_per_day}`}
+                    className="bg-secondary/30 font-mono"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowProfileSettings(false)}>Cancel</Button>
+            <Button onClick={handleSaveProfileSettings} className="bg-cyan text-white gap-2"><Settings className="h-3.5 w-3.5" /> Save Profile Settings</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Health Dialog */}
       <Dialog open={showHealth} onOpenChange={setShowHealth}>
         <DialogContent className="bg-card border-border max-w-lg">
@@ -555,7 +696,7 @@ export default function PackageDetail() {
         </DialogContent>
       </Dialog>
 
-      {/* Edit Settings Dialog */}
+      {/* Edit Package Settings Dialog */}
       <Dialog open={showEditSettings} onOpenChange={setShowEditSettings}>
         <DialogContent className="bg-card border-border max-w-2xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>

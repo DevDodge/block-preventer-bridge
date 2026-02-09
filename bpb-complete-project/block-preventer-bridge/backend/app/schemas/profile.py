@@ -22,6 +22,9 @@ class ProfileUpdate(BaseModel):
     manual_priority: Optional[int] = Field(default=None, ge=1, le=10)
     account_age_months: Optional[int] = Field(default=None, ge=0)
     status: Optional[str] = None
+    max_messages_per_hour: Optional[int] = Field(default=None, ge=1)
+    max_messages_per_3hours: Optional[int] = Field(default=None, ge=1)
+    max_messages_per_day: Optional[int] = Field(default=None, ge=1)
 
 
 class ProfileStatisticsResponse(BaseModel):

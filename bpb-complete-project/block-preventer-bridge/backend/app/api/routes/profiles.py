@@ -33,6 +33,9 @@ async def list_profiles(package_id: UUID, db: AsyncSession = Depends(get_db)):
             "account_age_months": p.account_age_months,
             "health_score": p.health_score,
             "risk_score": p.risk_score,
+            "max_messages_per_hour": p.max_messages_per_hour,
+            "max_messages_per_3hours": p.max_messages_per_3hours,
+            "max_messages_per_day": p.max_messages_per_day,
             "last_message_at": p.last_message_at.isoformat() if p.last_message_at else None,
             "last_block_at": p.last_block_at.isoformat() if p.last_block_at else None,
             "statistics": {
@@ -95,6 +98,9 @@ async def get_profile(package_id: UUID, profile_id: UUID, db: AsyncSession = Dep
         "account_age_months": profile.account_age_months,
         "health_score": profile.health_score,
         "risk_score": profile.risk_score,
+        "max_messages_per_hour": profile.max_messages_per_hour,
+        "max_messages_per_3hours": profile.max_messages_per_3hours,
+        "max_messages_per_day": profile.max_messages_per_day,
         "statistics": {
             "messages_sent_total": s.messages_sent_total if s else 0,
             "messages_sent_today": s.messages_sent_today if s else 0,

@@ -80,6 +80,11 @@ class Profile(Base):
     weight_score = Column(Float, default=10.0)
     account_age_months = Column(Integer, default=0)
     
+    # Per-profile rate limits (None = use package defaults)
+    max_messages_per_hour = Column(Integer, nullable=True)  # None = use package limit
+    max_messages_per_3hours = Column(Integer, nullable=True)
+    max_messages_per_day = Column(Integer, nullable=True)
+    
     # Health
     health_score = Column(Integer, default=100)
     risk_score = Column(Integer, default=0)

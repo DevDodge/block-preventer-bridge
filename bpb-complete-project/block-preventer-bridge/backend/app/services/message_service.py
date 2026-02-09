@@ -100,13 +100,15 @@ class MessageService:
                 )
                 self.db.add(queue_item)
             
-            # Build limits status
+            # Build limits status (use per-profile limits if set)
             stats = profile.statistics
             sent_hour = stats.messages_sent_hour if stats else 0
             sent_day = stats.messages_sent_today if stats else 0
+            p_hourly = profile.max_messages_per_hour if profile.max_messages_per_hour is not None else package.max_messages_per_hour
+            p_daily = profile.max_messages_per_day if profile.max_messages_per_day is not None else package.max_messages_per_day
             limits_status[profile_id_str] = {
-                "hourly": f"{sent_hour}/{package.max_messages_per_hour}",
-                "daily": f"{sent_day}/{package.max_messages_per_day}",
+                "hourly": f"{sent_hour}/{p_hourly}",
+                "daily": f"{sent_day}/{p_daily}",
                 "status": profile.status
             }
         

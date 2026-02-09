@@ -69,9 +69,16 @@ class ProfileService:
         if not profile:
             return None
         
+        # Fields that can be explicitly set to None (to clear per-profile overrides)
+        nullable_fields = {'max_messages_per_hour', 'max_messages_per_3hours', 'max_messages_per_day'}
+        
         for key, value in data.items():
-            if value is not None and hasattr(profile, key):
-                setattr(profile, key, value)
+            if hasattr(profile, key):
+                if key in nullable_fields:
+                    # Allow setting to None (clear override, use package default)
+                    setattr(profile, key, value)
+                elif value is not None:
+                    setattr(profile, key, value)
         
         # Recalculate weight after update
         await self.weight_service.calculate_weight(profile)
@@ -146,12 +153,15 @@ class ProfileService:
             "cooldown_mode": stats.cooldown_mode if stats else "normal"
         }
         
-        # 5. Determine limits usage
+        # 5. Determine limits usage (per-profile overrides or package defaults)
         package = profile.package
+        eff_hourly = profile.max_messages_per_hour if profile.max_messages_per_hour is not None else package.max_messages_per_hour
+        eff_3hours = profile.max_messages_per_3hours if profile.max_messages_per_3hours is not None else package.max_messages_per_3hours
+        eff_daily = profile.max_messages_per_day if profile.max_messages_per_day is not None else package.max_messages_per_day
         limits_usage = {
-            "hourly": {"used": stats_data["messages_sent_hour"], "limit": package.max_messages_per_hour, "pct": round(stats_data["messages_sent_hour"] / max(package.max_messages_per_hour, 1) * 100, 1)},
-            "three_hour": {"used": stats_data["messages_sent_3hours"], "limit": package.max_messages_per_3hours, "pct": round(stats_data["messages_sent_3hours"] / max(package.max_messages_per_3hours, 1) * 100, 1)},
-            "daily": {"used": stats_data["messages_sent_today"], "limit": package.max_messages_per_day, "pct": round(stats_data["messages_sent_today"] / max(package.max_messages_per_day, 1) * 100, 1)}
+            "hourly": {"used": stats_data["messages_sent_hour"], "limit": eff_hourly, "pct": round(stats_data["messages_sent_hour"] / max(eff_hourly, 1) * 100, 1)},
+            "three_hour": {"used": stats_data["messages_sent_3hours"], "limit": eff_3hours, "pct": round(stats_data["messages_sent_3hours"] / max(eff_3hours, 1) * 100, 1)},
+            "daily": {"used": stats_data["messages_sent_today"], "limit": eff_daily, "pct": round(stats_data["messages_sent_today"] / max(eff_daily, 1) * 100, 1)}
         }
         
         # 6. Generate Recommendations

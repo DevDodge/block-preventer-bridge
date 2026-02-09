@@ -10,6 +10,14 @@ from app.models.models import Profile, ProfileStatistics, Package
 logger = logging.getLogger(__name__)
 
 
+def _get_profile_limit(profile: Profile, package: Package, field: str) -> int:
+    """Get the effective limit for a profile. Uses profile-level override if set, otherwise package default."""
+    profile_val = getattr(profile, field, None)
+    if profile_val is not None:
+        return profile_val
+    return getattr(package, field)
+
+
 class DistributionService:
     """Handles message distribution across profiles."""
     
@@ -59,19 +67,19 @@ class DistributionService:
         
         for i, recipient in enumerate(recipients):
             profile_id = profile_ids[i % len(profile_ids)]
-            # Check if profile hasn't reached daily limit
             profile, stats = profiles_with_stats[i % len(profiles_with_stats)]
             sent_today = stats.messages_sent_today if stats else 0
-            if sent_today + len(distribution[profile_id]) < package.max_messages_per_day:
+            daily_limit = _get_profile_limit(profile, package, "max_messages_per_day")
+            if sent_today + len(distribution[profile_id]) < daily_limit:
                 distribution[profile_id].append(recipient)
             else:
-                # Find next available profile
                 for j in range(len(profiles_with_stats)):
                     alt_idx = (i + j + 1) % len(profiles_with_stats)
                     alt_profile, alt_stats = profiles_with_stats[alt_idx]
                     alt_sent = alt_stats.messages_sent_today if alt_stats else 0
                     alt_id = str(alt_profile.id)
-                    if alt_sent + len(distribution[alt_id]) < package.max_messages_per_day:
+                    alt_daily_limit = _get_profile_limit(alt_profile, package, "max_messages_per_day")
+                    if alt_sent + len(distribution[alt_id]) < alt_daily_limit:
                         distribution[alt_id].append(recipient)
                         break
         
@@ -88,12 +96,12 @@ class DistributionService:
             for profile, stats in available:
                 pid = str(profile.id)
                 sent_today = stats.messages_sent_today if stats else 0
-                if sent_today + len(distribution[pid]) < package.max_messages_per_day:
+                daily_limit = _get_profile_limit(profile, package, "max_messages_per_day")
+                if sent_today + len(distribution[pid]) < daily_limit:
                     distribution[pid].append(recipient)
                     assigned = True
                     break
             if not assigned and available:
-                # Force assign to least loaded
                 min_profile = min(available, key=lambda x: len(distribution[str(x[0].id)]))
                 distribution[str(min_profile[0].id)].append(recipient)
         
@@ -103,47 +111,44 @@ class DistributionService:
         """Distribute based on profile weight scores."""
         distribution = {str(p.id): [] for p, _ in profiles_with_stats}
         
-        # Calculate total weight
         total_weight = sum(max(p.weight_score, 1) for p, _ in profiles_with_stats)
         if total_weight == 0:
             return self._round_robin(profiles_with_stats, recipients, package)
         
-        # Calculate share per profile
         shares = {}
         for profile, stats in profiles_with_stats:
             share = max(profile.weight_score, 1) / total_weight
             shares[str(profile.id)] = max(1, int(len(recipients) * share))
         
-        # Distribute
         recipient_idx = 0
         for profile, stats in profiles_with_stats:
             pid = str(profile.id)
             count = min(shares[pid], len(recipients) - recipient_idx)
             sent_today = stats.messages_sent_today if stats else 0
-            max_can_send = max(0, package.max_messages_per_day - sent_today)
+            daily_limit = _get_profile_limit(profile, package, "max_messages_per_day")
+            max_can_send = max(0, daily_limit - sent_today)
             count = min(count, max_can_send)
             
             distribution[pid] = recipients[recipient_idx:recipient_idx + count]
             recipient_idx += count
         
-        # Assign remaining
         while recipient_idx < len(recipients):
             for profile, stats in profiles_with_stats:
                 if recipient_idx >= len(recipients):
                     break
                 pid = str(profile.id)
                 sent_today = stats.messages_sent_today if stats else 0
-                if sent_today + len(distribution[pid]) < package.max_messages_per_day:
+                daily_limit = _get_profile_limit(profile, package, "max_messages_per_day")
+                if sent_today + len(distribution[pid]) < daily_limit:
                     distribution[pid].append(recipients[recipient_idx])
                     recipient_idx += 1
         
         return {k: v for k, v in distribution.items() if v}
     
     def _smart(self, profiles_with_stats, recipients, package) -> Dict[str, List[str]]:
-        """Smart distribution considering health, limits, and usage."""
+        """Smart distribution considering health, per-profile limits, and usage."""
         distribution = {str(p.id): [] for p, _ in profiles_with_stats}
         
-        # Score each profile for smart routing
         scored_profiles = []
         for profile, stats in profiles_with_stats:
             sent_today = stats.messages_sent_today if stats else 0
@@ -151,18 +156,22 @@ class DistributionService:
             sent_3hours = stats.messages_sent_3hours if stats else 0
             success_rate = stats.success_rate_24h if stats else 100.0
             
-            # Calculate remaining capacity
-            daily_remaining = max(0, package.max_messages_per_day - sent_today)
-            hourly_remaining = max(0, package.max_messages_per_hour - sent_hour)
-            three_hour_remaining = max(0, package.max_messages_per_3hours - sent_3hours)
+            # Use per-profile limits (fallback to package defaults)
+            p_daily = _get_profile_limit(profile, package, "max_messages_per_day")
+            p_hourly = _get_profile_limit(profile, package, "max_messages_per_hour")
+            p_3hours = _get_profile_limit(profile, package, "max_messages_per_3hours")
+            
+            daily_remaining = max(0, p_daily - sent_today)
+            hourly_remaining = max(0, p_hourly - sent_hour)
+            three_hour_remaining = max(0, p_3hours - sent_3hours)
             
             capacity = min(daily_remaining, hourly_remaining, three_hour_remaining)
             
-            # Smart score = weight * health * capacity factor * success rate
+            # Smart score uses per-profile daily limit for capacity factor
             smart_score = (
                 max(profile.weight_score, 1) *
                 (profile.health_score / 100) *
-                (capacity / max(package.max_messages_per_day, 1)) *
+                (capacity / max(p_daily, 1)) *
                 (success_rate / 100)
             )
             
@@ -173,11 +182,14 @@ class DistributionService:
                 smart_score *= 0.8
             
             scored_profiles.append((profile, stats, smart_score, capacity))
+            logger.info(
+                f"Smart Score for {profile.name}: score={smart_score:.2f}, "
+                f"capacity={capacity}, limits=({p_hourly}h/{p_3hours}x3h/{p_daily}d), "
+                f"health={profile.health_score}, risk={profile.risk_score}, success={success_rate:.1f}%"
+            )
         
-        # Sort by smart score descending
         scored_profiles.sort(key=lambda x: x[2], reverse=True)
         
-        # Distribute proportionally to smart scores
         total_score = sum(s for _, _, s, _ in scored_profiles)
         if total_score == 0:
             return self._round_robin(profiles_with_stats, recipients, package)
