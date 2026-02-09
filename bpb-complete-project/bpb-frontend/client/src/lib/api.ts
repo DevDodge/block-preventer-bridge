@@ -80,6 +80,10 @@ export const messagesApi = {
   checkBlocks: (packageId: string) => request<any[]>(`/packages/${packageId}/block-check`),
   riskPatterns: (packageId: string, profileId: string) =>
     request<any>(`/packages/${packageId}/profiles/${profileId}/risk-patterns`),
+  deleteAll: (packageId: string) =>
+    request<any>(`/packages/${packageId}/messages/delete-all`, { method: "DELETE" }),
+  deleteAllQueue: (packageId: string) =>
+    request<any>(`/packages/${packageId}/queue/delete-all`, { method: "DELETE" }),
 };
 
 // ========== ALERTS ==========

@@ -112,23 +112,47 @@ class AutoAdjustService:
                 adjustments.append(f"Additional 20% decrease ({paused_count} profiles paused)")
 
         if adjustments:
-            await self.db.flush()
-
-            # Create info alert about adjustment
-            alert = Alert(
-                package_id=package.id,
-                alert_type="system",
-                severity="info",
-                title=f"Rate Limits Auto-Adjusted: {package.name}",
-                message=f"Adjustments: {'; '.join(adjustments)}. "
-                        f"New limits: {package.max_messages_per_hour}/hr, "
-                        f"{package.max_messages_per_3hours}/3hr, "
-                        f"{package.max_messages_per_day}/day"
+            # Check if limits actually changed from original values
+            limits_changed = (
+                package.max_messages_per_hour != original_hourly or
+                package.max_messages_per_3hours != original_3h or
+                package.max_messages_per_day != original_daily
             )
-            self.db.add(alert)
-            await self.db.flush()
+            
+            if limits_changed:
+                await self.db.flush()
 
-            logger.info(f"Auto-adjusted limits for package {package.name}: {adjustments}")
+                # Deduplication: Check if we already have a similar alert in the last hour
+                one_hour_ago = datetime.now(timezone.utc) - timedelta(hours=1)
+                existing = await self.db.execute(
+                    select(func.count(Alert.id)).where(
+                        Alert.package_id == package.id,
+                        Alert.alert_type == "system",
+                        Alert.title.like(f"Rate Limits Auto-Adjusted: {package.name}%"),
+                        Alert.created_at >= one_hour_ago
+                    )
+                )
+                if (existing.scalar() or 0) > 0:
+                    logger.debug(f"Skipping duplicate auto-adjust alert for package {package.name}")
+                else:
+                    # Create info alert about adjustment
+                    alert = Alert(
+                        package_id=package.id,
+                        alert_type="system",
+                        severity="info",
+                        title=f"Rate Limits Auto-Adjusted: {package.name}",
+                        message=f"Adjustments: {'; '.join(adjustments)}. "
+                                f"New limits: {package.max_messages_per_hour}/hr, "
+                                f"{package.max_messages_per_3hours}/3hr, "
+                                f"{package.max_messages_per_day}/day"
+                    )
+                    self.db.add(alert)
+                    await self.db.flush()
+
+                logger.info(f"Auto-adjusted limits for package {package.name}: {adjustments}")
+            else:
+                # Limits didn't actually change (already at min/max)
+                adjustments = []  # Clear adjustments since nothing changed
 
         return {
             "adjusted": len(adjustments) > 0,

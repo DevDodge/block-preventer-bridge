@@ -609,3 +609,56 @@ class MessageService:
             "total_messages": total,
             "success_rate": round(sent / max(total, 1) * 100, 2)
         }
+    
+    async def delete_all_messages(self, package_id: UUID) -> int:
+        """Delete all messages for a package along with related data."""
+        from sqlalchemy import delete as sql_delete
+        
+        # Get message IDs for this package (for deleting related data)
+        msg_ids_result = await self.db.execute(
+            select(Message.id).where(Message.package_id == package_id)
+        )
+        message_ids = [row[0] for row in msg_ids_result.all()]
+        
+        if not message_ids:
+            return 0
+        
+        # Delete delivery logs for these messages
+        await self.db.execute(
+            sql_delete(DeliveryLog).where(DeliveryLog.message_id.in_(message_ids))
+        )
+        
+        # Delete queue items for these messages
+        await self.db.execute(
+            sql_delete(MessageQueue).where(MessageQueue.message_id.in_(message_ids))
+        )
+        
+        # Delete the messages themselves
+        result = await self.db.execute(
+            sql_delete(Message).where(Message.package_id == package_id)
+        )
+        
+        await self.db.flush()
+        return result.rowcount
+    
+    async def delete_all_queue_items(self, package_id: UUID) -> int:
+        """Delete all queue items for a package (orphaned or waiting)."""
+        from sqlalchemy import delete as sql_delete
+        
+        # Get profile IDs for this package
+        profile_ids_result = await self.db.execute(
+            select(Profile.id).where(Profile.package_id == package_id)
+        )
+        profile_ids = [row[0] for row in profile_ids_result.all()]
+        
+        if not profile_ids:
+            return 0
+        
+        # Delete queue items for these profiles
+        result = await self.db.execute(
+            sql_delete(MessageQueue).where(MessageQueue.profile_id.in_(profile_ids))
+        )
+        
+        await self.db.flush()
+        return result.rowcount
+

@@ -140,6 +140,24 @@ async def get_analytics(
     return await service.get_analytics(package_id, days)
 
 
+# ========== DELETE ALL ==========
+
+@router.delete("/packages/{package_id}/messages/delete-all")
+async def delete_all_messages(package_id: UUID, db: AsyncSession = Depends(get_db)):
+    """Delete all messages for a package along with related delivery logs and queue items."""
+    service = MessageService(db)
+    count = await service.delete_all_messages(package_id)
+    return {"deleted": count, "message": f"Successfully deleted {count} message(s)"}
+
+
+@router.delete("/packages/{package_id}/queue/delete-all")
+async def delete_all_queue_items(package_id: UUID, db: AsyncSession = Depends(get_db)):
+    """Delete all queue items for a package."""
+    service = MessageService(db)
+    count = await service.delete_all_queue_items(package_id)
+    return {"deleted": count, "message": f"Successfully deleted {count} queue item(s)"}
+
+
 # ========== SCHEDULING ==========
 
 @router.post("/packages/{package_id}/messages/schedule", response_model=dict, status_code=201)

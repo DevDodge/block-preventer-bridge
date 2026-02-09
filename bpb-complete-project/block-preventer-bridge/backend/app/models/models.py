@@ -95,8 +95,9 @@ class Profile(Base):
     # Relationships
     package = relationship("Package", back_populates="profiles")
     statistics = relationship("ProfileStatistics", back_populates="profile", uselist=False, cascade="all, delete-orphan")
-    delivery_logs = relationship("DeliveryLog", back_populates="profile")
-    alerts = relationship("Alert", back_populates="profile")
+    delivery_logs = relationship("DeliveryLog", back_populates="profile", cascade="all, delete-orphan", passive_deletes=True)
+    alerts = relationship("Alert", back_populates="profile", cascade="all, delete-orphan", passive_deletes=True)
+    queue_items = relationship("MessageQueue", back_populates="profile", cascade="all, delete-orphan", passive_deletes=True)
 
 
 class ProfileStatistics(Base):
@@ -199,7 +200,7 @@ class MessageQueue(Base):
     
     # Relationships
     message = relationship("Message", back_populates="queue_items")
-    profile = relationship("Profile")
+    profile = relationship("Profile", back_populates="queue_items")
 
 
 class DeliveryLog(Base):

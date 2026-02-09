@@ -6,7 +6,7 @@
 import { useState, useMemo, useCallback, useEffect } from "react";
 import {
   MessageSquare, Send, Search, Activity, Clock, CheckCircle2,
-  XCircle, AlertTriangle, Package, Filter, RefreshCw, Calendar, ChevronDown, Timer, Zap
+  XCircle, AlertTriangle, Package, Filter, RefreshCw, Calendar, ChevronDown, Timer, Zap, Trash2
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -235,6 +235,33 @@ export default function Messages() {
     }
   };
 
+  // Delete all messages handler
+  const handleDeleteAllMessages = async () => {
+    if (!selectedPkg) return;
+    if (!confirm("Are you sure you want to delete ALL messages? This will also delete delivery logs and queue items. This action cannot be undone.")) return;
+    try {
+      const result = await messagesApi.deleteAll(selectedPkg);
+      toast.success(result.message || `Deleted ${result.deleted} message(s)`);
+      setAllMessages([]);
+      refetchMsgs();
+    } catch (err: any) {
+      toast.error(err.message);
+    }
+  };
+
+  // Delete all queue items handler
+  const handleDeleteAllQueue = async () => {
+    if (!selectedPkg) return;
+    if (!confirm("Are you sure you want to delete ALL queue items? This action cannot be undone.")) return;
+    try {
+      const result = await messagesApi.deleteAllQueue(selectedPkg);
+      toast.success(result.message || `Deleted ${result.deleted} queue item(s)`);
+      fetchQueueItems();
+    } catch (err: any) {
+      toast.error(err.message);
+    }
+  };
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
@@ -340,6 +367,17 @@ export default function Messages() {
             </div>
           ) : queueItems && queueItems.length > 0 ? (
             <div className="space-y-2">
+              {/* Delete All Queue Button */}
+              <div className="flex justify-end mb-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleDeleteAllQueue}
+                  className="gap-1 text-xs border-coral/30 text-coral hover:bg-coral/10 hover:text-coral"
+                >
+                  <Trash2 className="h-3.5 w-3.5" /> Delete All Queue
+                </Button>
+              </div>
               {/* Header row */}
               <div className="grid grid-cols-12 gap-2 px-4 py-2 text-[10px] font-mono text-muted-foreground uppercase tracking-wider">
                 <div className="col-span-1">Status</div>
@@ -463,6 +501,17 @@ export default function Messages() {
             </div>
           ) : messages && messages.length > 0 ? (
             <div className="space-y-2">
+              {/* Delete All Messages Button */}
+              <div className="flex justify-end mb-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleDeleteAllMessages}
+                  className="gap-1 text-xs border-coral/30 text-coral hover:bg-coral/10 hover:text-coral"
+                >
+                  <Trash2 className="h-3.5 w-3.5" /> Delete All Messages
+                </Button>
+              </div>
               {/* Header row */}
               <div className="grid grid-cols-12 gap-3 px-4 py-2 text-[10px] font-mono text-muted-foreground uppercase tracking-wider">
                 <div className="col-span-1">Status</div>
