@@ -132,10 +132,15 @@ class BlockDetectionService:
         action = "none"
         is_blocked = False
 
-        if severity == "critical" and package.auto_pause_on_failures:
-            action = "auto_pause"
-            is_blocked = True
-            await self._auto_pause_profile(profile, indicators, package)
+        if severity == "critical":
+            if package.auto_pause_on_failures:
+                action = "auto_pause"
+                is_blocked = True
+                await self._auto_pause_profile(profile, indicators, package)
+            else:
+                # Create critical alert without pausing
+                action = "alert_only"
+                await self._create_critical_alert(profile, indicators, package)
         elif severity == "warning":
             action = "alert_only"
             await self._create_block_warning(profile, indicators, package)
@@ -207,6 +212,21 @@ class BlockDetectionService:
         await self.db.flush()
 
         logger.warning(f"Profile {profile.name} ({profile.id}) auto-paused due to block detection")
+
+    async def _create_critical_alert(self, profile: Profile, indicators: list, package: Package):
+        """Create a critical alert without pausing the profile."""
+        alert = Alert(
+            package_id=profile.package_id,
+            profile_id=profile.id,
+            alert_type="block_detected",
+            severity="critical",
+            title=f"Critical Block Indicators: {profile.name}",
+            message=f"Critical block indicators detected: {'; '.join(i['detail'] for i in indicators[:3])}. "
+                    f"Profile is still active but requires immediate attention. Consider pausing manually if issues persist."
+        )
+        self.db.add(alert)
+        await self.db.flush()
+        logger.warning(f"Critical alert created for profile {profile.name} ({profile.id}) - auto-pause is disabled")
 
     async def _create_block_warning(self, profile: Profile, indicators: list, package: Package):
         """Create a warning alert without pausing."""

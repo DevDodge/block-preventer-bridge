@@ -42,7 +42,7 @@ class Package(Base):
     
     # Auto-adjustment
     auto_adjust_limits = Column(Boolean, default=True)
-    auto_pause_on_failures = Column(Boolean, default=True)
+    auto_pause_on_failures = Column(Boolean, default=False)
     auto_pause_failure_threshold = Column(Integer, default=5)
     auto_pause_success_rate_threshold = Column(Float, default=50.0)
     alert_risk_score_threshold = Column(Integer, default=50)

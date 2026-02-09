@@ -77,8 +77,8 @@ async def background_processor():
         except Exception as e:
             logger.error(f"Background processor session error: {e}")
         
-        # Run every 30 seconds
-        await asyncio.sleep(30)
+        # Run every 10 seconds for faster message processing
+        await asyncio.sleep(10)
 
 
 async def stats_reset_processor():
