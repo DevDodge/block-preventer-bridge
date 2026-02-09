@@ -2,10 +2,10 @@
  * Messages Page - Send messages and view history
  * Design: Command Center dark theme with teal accents
  */
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import {
   MessageSquare, Send, Search, Activity, Clock, CheckCircle2,
-  XCircle, AlertTriangle, Package, Filter, RefreshCw
+  XCircle, AlertTriangle, Package, Filter, RefreshCw, Calendar, ChevronDown
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -22,17 +22,74 @@ import { useApi } from "@/hooks/useApi";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
 
+const PAGE_SIZE = 25;
+
 export default function Messages() {
   const { data: packages } = useApi(() => packagesApi.list());
   const [selectedPkg, setSelectedPkg] = useState<string>("");
   const [showSend, setShowSend] = useState(false);
-  const [sendMode, setSendMode] = useState<"open" | "reply">("open");
+  const [sendMode, setSendMode] = useState<"open" | "reply" | "schedule">("open");
   const [statusFilter, setStatusFilter] = useState("all");
 
-  const { data: messages, loading: msgsLoading, refetch: refetchMsgs } = useApi(
-    () => selectedPkg ? messagesApi.list(selectedPkg, { status: statusFilter !== "all" ? statusFilter : undefined, limit: 50 }) : Promise.resolve([]),
+  // Pagination state
+  const [allMessages, setAllMessages] = useState<any[]>([]);
+  const [offset, setOffset] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+
+  const { data: initialMessages, loading: msgsLoading, refetch: refetchMsgs } = useApi(
+    () => selectedPkg ? messagesApi.list(selectedPkg, { status: statusFilter !== "all" ? statusFilter : undefined, limit: PAGE_SIZE, offset: 0 }) : Promise.resolve([]),
     [selectedPkg, statusFilter]
   );
+
+  // Sync initial messages to allMessages state
+  useState(() => {
+    if (initialMessages && initialMessages.length > 0) {
+      setAllMessages(initialMessages);
+      setHasMore(initialMessages.length === PAGE_SIZE);
+      setOffset(initialMessages.length);
+    }
+  });
+
+  // Reset pagination when package or filter changes
+  const handlePackageChange = (pkgId: string) => {
+    setSelectedPkg(pkgId);
+    setAllMessages([]);
+    setOffset(0);
+    setHasMore(true);
+  };
+
+  const handleFilterChange = (filter: string) => {
+    setStatusFilter(filter);
+    setAllMessages([]);
+    setOffset(0);
+    setHasMore(true);
+  };
+
+  // Load more messages
+  const loadMore = async () => {
+    if (!selectedPkg || loadingMore || !hasMore) return;
+    setLoadingMore(true);
+    try {
+      const more = await messagesApi.list(selectedPkg, {
+        status: statusFilter !== "all" ? statusFilter : undefined,
+        limit: PAGE_SIZE,
+        offset: offset
+      });
+      if (more.length < PAGE_SIZE) {
+        setHasMore(false);
+      }
+      setAllMessages(prev => [...prev, ...more]);
+      setOffset(prev => prev + more.length);
+    } catch (err) {
+      toast.error("Failed to load more messages");
+    } finally {
+      setLoadingMore(false);
+    }
+  };
+
+  // Use initialMessages if allMessages is empty
+  const messages = allMessages.length > 0 ? allMessages : (initialMessages || []);
 
   const { data: queueStatus } = useApi(
     () => selectedPkg ? messagesApi.queueStatus(selectedPkg) : Promise.resolve(null),
@@ -44,6 +101,10 @@ export default function Messages() {
   });
   const [replyForm, setReplyForm] = useState({
     recipient: "", content: "", message_type: "text", conversation_id: "",
+  });
+  const [scheduleForm, setScheduleForm] = useState({
+    recipients: "", content: "", message_type: "text",
+    scheduled_at: "", drip_mode: false, drip_interval_minutes: 30,
   });
 
   const handleSendOpen = async () => {
@@ -78,6 +139,30 @@ export default function Messages() {
       const result = await messagesApi.sendReply(selectedPkg, payload);
       toast.success(`Reply sent via ${result.profile_used || "auto-selected profile"}`);
       setReplyForm({ recipient: "", content: "", message_type: "text", conversation_id: "" });
+      setShowSend(false);
+      refetchMsgs();
+    } catch (err: any) {
+      toast.error(err.message);
+    }
+  };
+
+  const handleSchedule = async () => {
+    if (!selectedPkg) { toast.error("Select a package first"); return; }
+    if (!scheduleForm.recipients || !scheduleForm.content || !scheduleForm.scheduled_at) {
+      toast.error("Fill all fields including scheduled time"); return;
+    }
+    try {
+      const payload = {
+        message_type: scheduleForm.message_type,
+        content: scheduleForm.content,
+        recipients: scheduleForm.recipients.split(",").map(r => r.trim()).filter(Boolean),
+        scheduled_at: new Date(scheduleForm.scheduled_at).toISOString(),
+        drip_mode: scheduleForm.drip_mode,
+        drip_interval_minutes: scheduleForm.drip_interval_minutes,
+      };
+      const result = await messagesApi.schedule(selectedPkg, payload);
+      toast.success(`Message scheduled for ${new Date(scheduleForm.scheduled_at).toLocaleString()}`);
+      setScheduleForm({ recipients: "", content: "", message_type: "text", scheduled_at: "", drip_mode: false, drip_interval_minutes: 30 });
       setShowSend(false);
       refetchMsgs();
     } catch (err: any) {
@@ -122,7 +207,7 @@ export default function Messages() {
         {/* Package selector + Queue status */}
         <div className="flex items-center gap-4">
           <div className="flex-1 max-w-xs">
-            <Select value={selectedPkg} onValueChange={setSelectedPkg}>
+            <Select value={selectedPkg} onValueChange={handlePackageChange}>
               <SelectTrigger className="bg-secondary/30">
                 <SelectValue placeholder="Select a package..." />
               </SelectTrigger>
@@ -147,7 +232,7 @@ export default function Messages() {
           )}
 
           <div className="flex items-center gap-2 ml-auto">
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <Select value={statusFilter} onValueChange={handleFilterChange}>
               <SelectTrigger className="w-[130px] bg-secondary/30 text-xs">
                 <SelectValue />
               </SelectTrigger>
@@ -220,6 +305,25 @@ export default function Messages() {
                 </div>
               </motion.div>
             ))}
+
+            {/* Load More Button */}
+            {hasMore && messages.length >= PAGE_SIZE && (
+              <div className="flex justify-center pt-4">
+                <Button
+                  variant="outline"
+                  onClick={loadMore}
+                  disabled={loadingMore}
+                  className="gap-2 border-border text-xs"
+                >
+                  {loadingMore ? (
+                    <Activity className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <ChevronDown className="h-3.5 w-3.5" />
+                  )}
+                  {loadingMore ? "Loading..." : `Load More (${messages.length} loaded)`}
+                </Button>
+              </div>
+            )}
           </div>
         ) : (
           <Card className="border-glow bg-card/80">
@@ -253,7 +357,10 @@ export default function Messages() {
                 New Conversation
               </TabsTrigger>
               <TabsTrigger value="reply" className="flex-1 data-[state=active]:bg-primary/15 data-[state=active]:text-primary text-xs">
-                Reply to Conversation
+                Reply
+              </TabsTrigger>
+              <TabsTrigger value="schedule" className="flex-1 data-[state=active]:bg-primary/15 data-[state=active]:text-primary text-xs">
+                <Calendar className="h-3 w-3 mr-1" /> Schedule
               </TabsTrigger>
             </TabsList>
 
@@ -333,6 +440,77 @@ export default function Messages() {
               </div>
               <Button onClick={handleSendReply} className="w-full bg-primary text-primary-foreground gap-2">
                 <Send className="h-4 w-4" /> Reply via BPB
+              </Button>
+            </TabsContent>
+
+            <TabsContent value="schedule" className="space-y-3 mt-4">
+              <div className="space-y-1.5">
+                <Label className="text-xs">Recipients (comma-separated)</Label>
+                <Input
+                  value={scheduleForm.recipients}
+                  onChange={(e) => setScheduleForm({ ...scheduleForm, recipients: e.target.value })}
+                  placeholder="+201066..., +201077..."
+                  className="bg-secondary/30 font-mono"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Message Type</Label>
+                  <Select value={scheduleForm.message_type} onValueChange={(v) => setScheduleForm({ ...scheduleForm, message_type: v })}>
+                    <SelectTrigger className="bg-secondary/30"><SelectValue /></SelectTrigger>
+                    <SelectContent className="bg-popover border-border">
+                      <SelectItem value="text">Text</SelectItem>
+                      <SelectItem value="template">Template</SelectItem>
+                      <SelectItem value="media">Media</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Scheduled Time</Label>
+                  <Input
+                    type="datetime-local"
+                    value={scheduleForm.scheduled_at}
+                    onChange={(e) => setScheduleForm({ ...scheduleForm, scheduled_at: e.target.value })}
+                    className="bg-secondary/30 font-mono"
+                  />
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Message Content</Label>
+                <Textarea
+                  value={scheduleForm.content}
+                  onChange={(e) => setScheduleForm({ ...scheduleForm, content: e.target.value })}
+                  placeholder="Type your scheduled message..."
+                  className="bg-secondary/30 min-h-[80px]"
+                />
+              </div>
+              <div className="flex items-center gap-4 p-3 rounded-lg border border-border/50 bg-secondary/20">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="dripMode"
+                    checked={scheduleForm.drip_mode}
+                    onChange={(e) => setScheduleForm({ ...scheduleForm, drip_mode: e.target.checked })}
+                    className="rounded border-border"
+                  />
+                  <Label htmlFor="dripMode" className="text-xs cursor-pointer">Drip Mode</Label>
+                </div>
+                {scheduleForm.drip_mode && (
+                  <div className="flex items-center gap-2">
+                    <Label className="text-xs text-muted-foreground">Interval:</Label>
+                    <Input
+                      type="number"
+                      value={scheduleForm.drip_interval_minutes}
+                      onChange={(e) => setScheduleForm({ ...scheduleForm, drip_interval_minutes: parseInt(e.target.value) || 30 })}
+                      className="w-20 h-7 bg-secondary/30 font-mono text-xs"
+                      min={1}
+                    />
+                    <span className="text-xs text-muted-foreground">min</span>
+                  </div>
+                )}
+              </div>
+              <Button onClick={handleSchedule} className="w-full bg-primary text-primary-foreground gap-2">
+                <Calendar className="h-4 w-4" /> Schedule Message
               </Button>
             </TabsContent>
           </Tabs>

@@ -475,38 +475,86 @@ class MessageService:
         await self.db.flush()
     
     async def get_analytics(self, package_id: UUID, days: int = 7) -> dict:
-        """Get analytics data for a package."""
+        """Get analytics data for a package with full breakdown."""
         since = datetime.now(timezone.utc) - timedelta(days=days)
+        
+        # Subquery for messages in this package
+        package_messages = select(Message.id).where(Message.package_id == package_id)
         
         # Total messages by status
         status_result = await self.db.execute(
             select(DeliveryLog.status, func.count(DeliveryLog.id))
             .where(
                 DeliveryLog.created_at >= since,
-                DeliveryLog.message_id.in_(
-                    select(Message.id).where(Message.package_id == package_id)
-                )
+                DeliveryLog.message_id.in_(package_messages)
             )
             .group_by(DeliveryLog.status)
         )
         status_counts = {row[0]: row[1] for row in status_result.all()}
         
-        # Messages per day
-        daily_result = await self.db.execute(
+        # Daily breakdown with sent/delivered/failed per day
+        daily_breakdown_result = await self.db.execute(
             select(
                 func.date(DeliveryLog.created_at).label("date"),
-                func.count(DeliveryLog.id).label("count")
+                func.count(DeliveryLog.id).filter(DeliveryLog.status == "sent").label("sent"),
+                func.count(DeliveryLog.id).filter(DeliveryLog.status == "delivered").label("delivered"),
+                func.count(DeliveryLog.id).filter(DeliveryLog.status == "failed").label("failed")
             )
             .where(
                 DeliveryLog.created_at >= since,
-                DeliveryLog.message_id.in_(
-                    select(Message.id).where(Message.package_id == package_id)
-                )
+                DeliveryLog.message_id.in_(package_messages)
             )
             .group_by(func.date(DeliveryLog.created_at))
             .order_by(func.date(DeliveryLog.created_at))
         )
-        daily_counts = [{"date": str(row[0]), "count": row[1]} for row in daily_result.all()]
+        
+        # Build daily breakdown with formatted dates
+        daily_breakdown = []
+        for row in daily_breakdown_result.all():
+            date_obj = row[0]
+            if hasattr(date_obj, 'strftime'):
+                formatted_date = date_obj.strftime("%b %d")
+            else:
+                formatted_date = str(date_obj)
+            daily_breakdown.append({
+                "date": formatted_date,
+                "sent": row[1] or 0,
+                "delivered": row[2] or 0,
+                "failed": row[3] or 0
+            })
+        
+        # Hourly breakdown - messages per hour of day
+        hourly_result = await self.db.execute(
+            select(
+                func.extract('hour', DeliveryLog.created_at).label("hour"),
+                func.count(DeliveryLog.id).label("messages")
+            )
+            .where(
+                DeliveryLog.created_at >= since,
+                DeliveryLog.message_id.in_(package_messages)
+            )
+            .group_by(func.extract('hour', DeliveryLog.created_at))
+            .order_by(func.extract('hour', DeliveryLog.created_at))
+        )
+        
+        # Build hourly breakdown with all 24 hours
+        hourly_map = {int(row[0]): row[1] for row in hourly_result.all()}
+        hourly_breakdown = [
+            {"hour": f"{h}:00", "messages": hourly_map.get(h, 0)}
+            for h in range(24)
+        ]
+        
+        # Average delivery time from response_time_ms
+        avg_time_result = await self.db.execute(
+            select(func.avg(DeliveryLog.response_time_ms))
+            .where(
+                DeliveryLog.created_at >= since,
+                DeliveryLog.message_id.in_(package_messages),
+                DeliveryLog.response_time_ms > 0
+            )
+        )
+        avg_delivery_ms = avg_time_result.scalar() or 0
+        avg_delivery_time = round(avg_delivery_ms / 1000, 1) if avg_delivery_ms else 0
         
         # Per profile stats
         profile_result = await self.db.execute(
@@ -528,13 +576,36 @@ class MessageService:
             for row in profile_result.all()
         ]
         
+        # Count queued messages
+        queued_result = await self.db.execute(
+            select(func.count(Message.id))
+            .where(
+                Message.package_id == package_id,
+                Message.status == "queued"
+            )
+        )
+        queued_count = queued_result.scalar() or 0
+        
+        total = sum(status_counts.values())
+        sent = status_counts.get("sent", 0)
+        delivered = status_counts.get("delivered", 0)
+        failed = status_counts.get("failed", 0)
+        
         return {
             "period_days": days,
+            # Summary stats for frontend cards
+            "total_sent": sent + delivered,
+            "sent": sent,
+            "delivered": delivered,
+            "failed": failed,
+            "queued": queued_count,
+            "avg_delivery_time": avg_delivery_time,
+            # Chart data
+            "daily_breakdown": daily_breakdown,
+            "hourly_breakdown": hourly_breakdown,
+            # Legacy fields
             "status_counts": status_counts,
-            "daily_counts": daily_counts,
             "profile_stats": profile_stats,
-            "total_messages": sum(status_counts.values()),
-            "success_rate": round(
-                status_counts.get("sent", 0) / max(sum(status_counts.values()), 1) * 100, 2
-            )
+            "total_messages": total,
+            "success_rate": round(sent / max(total, 1) * 100, 2)
         }

@@ -26,6 +26,8 @@ class SchedulingService:
         - recipients: list of phone numbers
         - content: message text
         - message_type: text/template/media
+        - drip_mode: optional, if True spreads recipients over time
+        - drip_interval_minutes: optional, interval between drip sends (default 30)
         """
         scheduled_at = data.get("scheduled_at")
         if not scheduled_at:
@@ -38,29 +40,69 @@ class SchedulingService:
             raise ValueError("scheduled_at must be in the future")
 
         recipients = data.get("recipients", [])
+        drip_mode = data.get("drip_mode", False)
+        drip_interval_minutes = data.get("drip_interval_minutes", 30)
+        
+        if drip_mode and len(recipients) > 1:
+            # Create separate scheduled messages for each recipient with staggered times
+            messages_created = []
+            for i, recipient in enumerate(recipients):
+                send_time = scheduled_at + timedelta(minutes=drip_interval_minutes * i)
+                message = Message(
+                    package_id=package_id,
+                    message_mode="open",
+                    message_type=data.get("message_type", "text"),
+                    content=data.get("content", ""),
+                    media_url=data.get("media_url"),
+                    caption=data.get("caption"),
+                    recipients=[recipient],
+                    status="scheduled",
+                    scheduled_at=send_time,
+                    total_recipients=1
+                )
+                self.db.add(message)
+                messages_created.append({
+                    "recipient": recipient,
+                    "scheduled_at": send_time.isoformat()
+                })
+            await self.db.flush()
+            
+            total_duration_minutes = drip_interval_minutes * (len(recipients) - 1)
+            return {
+                "status": "scheduled",
+                "mode": "drip",
+                "total_recipients": len(recipients),
+                "drip_interval_minutes": drip_interval_minutes,
+                "first_send": scheduled_at.isoformat(),
+                "last_send": (scheduled_at + timedelta(minutes=total_duration_minutes)).isoformat(),
+                "total_duration_minutes": total_duration_minutes,
+                "note": f"Messages will be sent every {drip_interval_minutes} minutes starting at scheduled time"
+            }
+        else:
+            # Single message with all recipients
+            message = Message(
+                package_id=package_id,
+                message_mode="open",
+                message_type=data.get("message_type", "text"),
+                content=data.get("content", ""),
+                media_url=data.get("media_url"),
+                caption=data.get("caption"),
+                recipients=recipients,
+                status="scheduled",
+                scheduled_at=scheduled_at,
+                total_recipients=len(recipients)
+            )
+            self.db.add(message)
+            await self.db.flush()
 
-        message = Message(
-            package_id=package_id,
-            message_mode="open",
-            message_type=data.get("message_type", "text"),
-            content=data.get("content", ""),
-            media_url=data.get("media_url"),
-            caption=data.get("caption"),
-            recipients=recipients,
-            status="scheduled",
-            scheduled_at=scheduled_at,
-            total_recipients=len(recipients)
-        )
-        self.db.add(message)
-        await self.db.flush()
-
-        return {
-            "message_id": str(message.id),
-            "status": "scheduled",
-            "scheduled_at": scheduled_at.isoformat(),
-            "total_recipients": len(recipients),
-            "note": "Message will be processed at the scheduled time"
-        }
+            return {
+                "message_id": str(message.id),
+                "status": "scheduled",
+                "mode": "bulk",
+                "scheduled_at": scheduled_at.isoformat(),
+                "total_recipients": len(recipients),
+                "note": "Message will be processed at the scheduled time"
+            }
 
     async def process_scheduled_messages(self):
         """

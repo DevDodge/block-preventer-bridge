@@ -6,7 +6,7 @@ import { useState, useCallback } from "react";
 import { Link, useLocation } from "wouter";
 import {
   Package, Plus, Trash2, Edit, Settings, Users, MessageSquare,
-  Activity, ChevronRight, Search, MoreVertical, Zap
+  Activity, ChevronRight, Search, MoreVertical, Zap, Copy, Check
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -161,6 +161,22 @@ export default function Packages() {
                         <div>
                           <h3 className="text-sm font-semibold text-foreground">{pkg.name}</h3>
                           <p className="text-[11px] text-muted-foreground">{pkg.description || "No description"}</p>
+                          <div className="flex items-center gap-1 mt-1">
+                            <span className="text-[9px] font-mono text-muted-foreground/70 truncate max-w-[150px]">
+                              ID: {pkg.id.slice(0, 8)}...
+                            </span>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                navigator.clipboard.writeText(pkg.id);
+                                toast.success("Package ID copied!");
+                              }}
+                              className="p-0.5 rounded hover:bg-primary/10 transition-colors"
+                              title="Copy full ID"
+                            >
+                              <Copy className="h-3 w-3 text-muted-foreground hover:text-primary" />
+                            </button>
+                          </div>
                         </div>
                       </div>
                       <DropdownMenu>

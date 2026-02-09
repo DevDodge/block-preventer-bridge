@@ -34,47 +34,38 @@ export default function Analytics() {
     [selectedPkg, days]
   );
 
-  // Generate sample chart data based on analytics or defaults
+  // Use real chart data from API or empty arrays
   const dailyData = useMemo(() => {
-    if (analytics?.daily_breakdown) return analytics.daily_breakdown;
-    const data = [];
-    for (let i = days - 1; i >= 0; i--) {
-      const d = new Date();
-      d.setDate(d.getDate() - i);
-      data.push({
-        date: d.toLocaleDateString("en", { month: "short", day: "numeric" }),
-        sent: Math.floor(Math.random() * 50),
-        delivered: Math.floor(Math.random() * 45),
-        failed: Math.floor(Math.random() * 5),
-      });
+    if (analytics?.daily_breakdown && analytics.daily_breakdown.length > 0) {
+      return analytics.daily_breakdown;
     }
-    return data;
-  }, [analytics, days]);
+    // Return empty data structure when no data
+    return [];
+  }, [analytics]);
 
   const statusPieData = useMemo(() => {
     if (analytics) {
-      return [
+      const data = [
         { name: "Delivered", value: analytics.delivered || 0 },
         { name: "Sent", value: analytics.sent || 0 },
         { name: "Queued", value: analytics.queued || 0 },
         { name: "Failed", value: analytics.failed || 0 },
       ].filter(d => d.value > 0);
+      return data.length > 0 ? data : [];
     }
-    return [
-      { name: "Delivered", value: 65 },
-      { name: "Sent", value: 20 },
-      { name: "Queued", value: 10 },
-      { name: "Failed", value: 5 },
-    ];
+    return [];
   }, [analytics]);
 
   const hourlyData = useMemo(() => {
-    if (analytics?.hourly_breakdown) return analytics.hourly_breakdown;
-    return Array.from({ length: 24 }, (_, i) => ({
-      hour: `${i}:00`,
-      messages: Math.floor(Math.random() * 20),
-    }));
+    if (analytics?.hourly_breakdown && analytics.hourly_breakdown.length > 0) {
+      return analytics.hourly_breakdown;
+    }
+    // Return empty data structure when no data
+    return [];
   }, [analytics]);
+
+  const hasData = selectedPkg && (dailyData.length > 0 || statusPieData.length > 0);
+
 
   return (
     <DashboardLayout>
@@ -149,97 +140,121 @@ export default function Analytics() {
           ))}
         </div>
 
-        {/* Charts */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Daily trend */}
-          <div className="lg:col-span-2">
+        {/* Empty State */}
+        {!selectedPkg && (
+          <Card className="border-glow bg-card/80">
+            <CardContent className="flex flex-col items-center justify-center py-16">
+              <BarChart3 className="h-12 w-12 text-muted-foreground/20 mb-4" />
+              <p className="text-sm text-muted-foreground">Select a package to view analytics</p>
+            </CardContent>
+          </Card>
+        )}
+
+        {selectedPkg && !hasData && !loading && (
+          <Card className="border-glow bg-card/80">
+            <CardContent className="flex flex-col items-center justify-center py-16">
+              <Activity className="h-12 w-12 text-muted-foreground/20 mb-4" />
+              <p className="text-sm text-muted-foreground">No message data for this period</p>
+              <p className="text-xs text-muted-foreground/60 mt-1">Send some messages to see analytics here</p>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Charts - only show if we have data */}
+        {hasData && (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Daily trend */}
+            <div className="lg:col-span-2">
+              <Card className="border-glow bg-card/80">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-mono flex items-center gap-2">
+                    <TrendingUp className="h-4 w-4 text-primary" />
+                    Daily Message Volume
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <ResponsiveContainer width="100%" height={280}>
+                    <AreaChart data={dailyData}>
+                      <defs>
+                        <linearGradient id="colorSent" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#00d4aa" stopOpacity={0.3} />
+                          <stop offset="95%" stopColor="#00d4aa" stopOpacity={0} />
+                        </linearGradient>
+                        <linearGradient id="colorDelivered" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#0ea5e9" stopOpacity={0.3} />
+                          <stop offset="95%" stopColor="#0ea5e9" stopOpacity={0} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+                      <XAxis dataKey="date" tick={{ fontSize: 10, fill: "#6b7280" }} />
+                      <YAxis tick={{ fontSize: 10, fill: "#6b7280" }} />
+                      <RTooltip contentStyle={{ background: "#0d1526", border: "1px solid rgba(0,212,170,0.3)", borderRadius: "8px", fontSize: "12px" }} />
+                      <Area type="monotone" dataKey="sent" stroke="#00d4aa" fill="url(#colorSent)" strokeWidth={2} />
+                      <Area type="monotone" dataKey="delivered" stroke="#0ea5e9" fill="url(#colorDelivered)" strokeWidth={2} />
+                      <Bar dataKey="failed" fill="#ef4444" opacity={0.6} />
+                      <Legend wrapperStyle={{ fontSize: "11px" }} />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Status pie */}
             <Card className="border-glow bg-card/80">
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-mono flex items-center gap-2">
-                  <TrendingUp className="h-4 w-4 text-primary" />
-                  Daily Message Volume
+                  <Activity className="h-4 w-4 text-primary" />
+                  Delivery Status
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 <ResponsiveContainer width="100%" height={280}>
-                  <AreaChart data={dailyData}>
-                    <defs>
-                      <linearGradient id="colorSent" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#00d4aa" stopOpacity={0.3} />
-                        <stop offset="95%" stopColor="#00d4aa" stopOpacity={0} />
-                      </linearGradient>
-                      <linearGradient id="colorDelivered" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#0ea5e9" stopOpacity={0.3} />
-                        <stop offset="95%" stopColor="#0ea5e9" stopOpacity={0} />
-                      </linearGradient>
-                    </defs>
+                  <PieChart>
+                    <Pie
+                      data={statusPieData}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={60}
+                      outerRadius={90}
+                      paddingAngle={3}
+                      dataKey="value"
+                    >
+                      {statusPieData.map((_, index) => (
+                        <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <RTooltip contentStyle={{ background: "#0d1526", border: "1px solid rgba(0,212,170,0.3)", borderRadius: "8px", fontSize: "12px" }} />
+                    <Legend wrapperStyle={{ fontSize: "11px" }} />
+                  </PieChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+
+            {/* Hourly distribution */}
+            <Card className="border-glow bg-card/80 lg:col-span-3">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-mono flex items-center gap-2">
+                  <Clock className="h-4 w-4 text-primary" />
+                  Hourly Distribution
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={200}>
+                  <BarChart data={hourlyData}>
                     <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
-                    <XAxis dataKey="date" tick={{ fontSize: 10, fill: "#6b7280" }} />
+                    <XAxis dataKey="hour" tick={{ fontSize: 9, fill: "#6b7280" }} interval={2} />
                     <YAxis tick={{ fontSize: 10, fill: "#6b7280" }} />
                     <RTooltip contentStyle={{ background: "#0d1526", border: "1px solid rgba(0,212,170,0.3)", borderRadius: "8px", fontSize: "12px" }} />
-                    <Area type="monotone" dataKey="sent" stroke="#00d4aa" fill="url(#colorSent)" strokeWidth={2} />
-                    <Area type="monotone" dataKey="delivered" stroke="#0ea5e9" fill="url(#colorDelivered)" strokeWidth={2} />
-                    <Bar dataKey="failed" fill="#ef4444" opacity={0.6} />
-                    <Legend wrapperStyle={{ fontSize: "11px" }} />
-                  </AreaChart>
+                    <Bar dataKey="messages" fill="#00d4aa" radius={[2, 2, 0, 0]} opacity={0.8} />
+                  </BarChart>
                 </ResponsiveContainer>
               </CardContent>
             </Card>
           </div>
-
-          {/* Status pie */}
-          <Card className="border-glow bg-card/80">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-mono flex items-center gap-2">
-                <Activity className="h-4 w-4 text-primary" />
-                Delivery Status
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ResponsiveContainer width="100%" height={280}>
-                <PieChart>
-                  <Pie
-                    data={statusPieData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={60}
-                    outerRadius={90}
-                    paddingAngle={3}
-                    dataKey="value"
-                  >
-                    {statusPieData.map((_, index) => (
-                      <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <RTooltip contentStyle={{ background: "#0d1526", border: "1px solid rgba(0,212,170,0.3)", borderRadius: "8px", fontSize: "12px" }} />
-                  <Legend wrapperStyle={{ fontSize: "11px" }} />
-                </PieChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Hourly distribution */}
-        <Card className="border-glow bg-card/80">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-mono flex items-center gap-2">
-              <Clock className="h-4 w-4 text-primary" />
-              Hourly Distribution
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={200}>
-              <BarChart data={hourlyData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
-                <XAxis dataKey="hour" tick={{ fontSize: 9, fill: "#6b7280" }} interval={2} />
-                <YAxis tick={{ fontSize: 10, fill: "#6b7280" }} />
-                <RTooltip contentStyle={{ background: "#0d1526", border: "1px solid rgba(0,212,170,0.3)", borderRadius: "8px", fontSize: "12px" }} />
-                <Bar dataKey="messages" fill="#00d4aa" radius={[2, 2, 0, 0]} opacity={0.8} />
-              </BarChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
+        )}
       </div>
     </DashboardLayout>
   );
 }
+
+

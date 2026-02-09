@@ -51,11 +51,12 @@ export const profilesApi = {
 
 // ========== MESSAGES ==========
 export const messagesApi = {
-  list: (packageId: string, params?: { status?: string; mode?: string; limit?: number }) => {
+  list: (packageId: string, params?: { status?: string; mode?: string; limit?: number; offset?: number }) => {
     const query = new URLSearchParams();
     if (params?.status) query.set("status", params.status);
     if (params?.mode) query.set("mode", params.mode);
     if (params?.limit) query.set("limit", String(params.limit));
+    if (params?.offset) query.set("offset", String(params.offset));
     return request<any[]>(`/packages/${packageId}/messages?${query.toString()}`);
   },
   get: (packageId: string, messageId: string) => request<any>(`/packages/${packageId}/messages/${messageId}`),
