@@ -307,13 +307,14 @@ export default function Messages() {
               </Button>
             </div>
             {/* Header row */}
-            <div className="grid grid-cols-12 gap-2 px-4 py-2 text-[10px] font-mono text-muted-foreground uppercase tracking-wider">
+            <div className="grid grid-cols-14 gap-2 px-4 py-2 text-[10px] font-mono text-muted-foreground uppercase tracking-wider" style={{ gridTemplateColumns: 'repeat(14, minmax(0, 1fr))' }}>
               <div className="col-span-1">Status</div>
               <div className="col-span-1">Mode</div>
               <div className="col-span-1">Countdown</div>
               <div className="col-span-2">Recipient</div>
               <div className="col-span-2">Profile</div>
               <div className="col-span-1">Attempt</div>
+              <div className="col-span-2">Queued At</div>
               <div className="col-span-4">Error / Send Time</div>
             </div>
 
@@ -326,11 +327,12 @@ export default function Messages() {
               return (
                 <motion.div key={item.id} initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.015 }}>
                   <div
-                    className={`relative group grid grid-cols-12 gap-2 items-center rounded-lg border px-4 py-3 transition-all cursor-pointer ${isFailed ? "border-coral/50 bg-coral/5" :
+                    className={`relative group grid gap-2 items-center rounded-lg border px-4 py-3 transition-all cursor-pointer ${isFailed ? "border-coral/50 bg-coral/5" :
                       isSent ? "border-emerald/30 bg-emerald/5" :
                         isProcessing ? "border-amber-400/50 bg-amber-400/5" :
                           "border-border/50 bg-card/60 hover:border-primary/20"
                       }`}
+                    style={{ gridTemplateColumns: 'repeat(14, minmax(0, 1fr))' }}
                     onClick={() => handleContentInteraction(item)}
                   >
                     {/* Status */}
@@ -387,6 +389,17 @@ export default function Messages() {
                         }`}>{item.attempt_count}/{item.max_attempts}</span>
                     </div>
 
+                    {/* Queued At */}
+                    <div className="col-span-2">
+                      {item.created_at ? (
+                        <p className="text-[10px] text-muted-foreground font-mono">
+                          {new Date(item.created_at).toLocaleString([], { month: '2-digit', day: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true })}
+                        </p>
+                      ) : (
+                        <span className="text-[10px] text-muted-foreground">—</span>
+                      )}
+                    </div>
+
                     {/* Error / Time */}
                     <div className="col-span-4">
                       {item.last_error ? (
@@ -413,7 +426,8 @@ export default function Messages() {
 
                     {/* Hover tooltip for message content */}
                     {contentDisplayMode === "hover" && item.content && (
-                      <div className="col-span-12 hidden group-hover:block animate-in fade-in slide-in-from-top-1 duration-200 pt-2">
+                      /* col-span-14 to span full row */
+                      <div className="col-span-14 hidden group-hover:block animate-in fade-in slide-in-from-top-1 duration-200 pt-2">
                         <div className="p-3 rounded-lg bg-secondary/20 border border-primary/10">
                           <div className="flex items-center gap-1.5 mb-1.5">
                             <Eye className="h-3 w-3 text-primary" />
