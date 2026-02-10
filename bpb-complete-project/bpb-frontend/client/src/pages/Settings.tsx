@@ -1,5 +1,5 @@
 /**
- * Settings Page - System configuration, Zentra API settings, and preferences
+ * Settings Page - System configuration, API settings, and preferences
  * Design: Command Center dark theme with teal accents
  * Now loads/saves from backend API instead of localStorage
  */
@@ -123,7 +123,7 @@ export default function Settings() {
             Settings
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Configure system behavior, Zentra integration, and notifications
+            Configure system behavior, API integration, and notifications
           </p>
         </div>
 
@@ -135,7 +135,7 @@ export default function Settings() {
             <TabsTrigger value="notifications" className="data-[state=active]:bg-primary/15 data-[state=active]:text-primary gap-1.5 text-xs">
               <Bell className="h-3.5 w-3.5" /> Notifications
             </TabsTrigger>
-            <TabsTrigger value="zentra" className="data-[state=active]:bg-primary/15 data-[state=active]:text-primary gap-1.5 text-xs">
+            <TabsTrigger value="connection" className="data-[state=active]:bg-primary/15 data-[state=active]:text-primary gap-1.5 text-xs">
               <Globe className="h-3.5 w-3.5" /> Connection
             </TabsTrigger>
           </TabsList>
@@ -288,7 +288,7 @@ export default function Settings() {
                       { label: "Background Processor", value: health?.background_processor || "unknown" },
                       { label: "Database", value: "PostgreSQL" },
                       { label: "Backend", value: "FastAPI + Uvicorn" },
-                      { label: "Integration", value: "Zentra WhatsApp API" },
+                      { label: "Integration", value: "WhatsApp API" },
                       { label: "Timezone", value: formData.timezone },
                     ].map((item) => (
                       <div key={item.label} className="flex justify-between text-xs rounded-md bg-secondary/20 px-3 py-2">
@@ -371,7 +371,7 @@ export default function Settings() {
           </TabsContent>
 
           {/* Connection Tab */}
-          <TabsContent value="zentra">
+          <TabsContent value="connection">
             <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
               <Card className="border-glow bg-card/80">
                 <CardHeader>
@@ -407,7 +407,7 @@ export default function Settings() {
                   </div>
 
                   <div className="text-xs text-muted-foreground/60 mt-2">
-                    <p>Zentra API credentials are configured per-profile (each profile has its own zentra_uuid and zentra_api_token). 
+                    <p>API credentials are configured per-profile (each profile has its own device UUID and API token). 
                     Go to a package's profile settings to configure individual API credentials.</p>
                   </div>
                 </CardContent>

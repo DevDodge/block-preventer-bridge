@@ -12,6 +12,7 @@ import Messages from "./pages/Messages";
 import Analytics from "./pages/Analytics";
 import Alerts from "./pages/Alerts";
 import Settings from "./pages/Settings";
+import UserManual from "./pages/UserManual";
 
 function Router() {
   return (
@@ -24,6 +25,7 @@ function Router() {
       <Route path={"/analytics"} component={Analytics} />
       <Route path={"/alerts"} component={Alerts} />
       <Route path={"/settings"} component={Settings} />
+      <Route path={"/manual"} component={UserManual} />
       <Route path={"/404"} component={NotFound} />
       <Route component={NotFound} />
     </Switch>

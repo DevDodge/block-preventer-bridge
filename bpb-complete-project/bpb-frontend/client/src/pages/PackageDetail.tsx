@@ -472,7 +472,7 @@ export default function PackageDetail() {
         <DialogContent className="bg-card border-border">
           <DialogHeader>
             <DialogTitle className="font-mono flex items-center gap-2"><Users className="h-4 w-4 text-primary" /> Add Profile</DialogTitle>
-            <DialogDescription className="text-xs text-muted-foreground">Connect a WhatsApp profile via Zentra</DialogDescription>
+            <DialogDescription className="text-xs text-muted-foreground">Connect a WhatsApp profile via API</DialogDescription>
           </DialogHeader>
           <div className="space-y-3 py-4">
             <div className="grid grid-cols-2 gap-3">
@@ -486,11 +486,11 @@ export default function PackageDetail() {
               </div>
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs">Zentra Device UUID</Label>
+              <Label className="text-xs">Device UUID</Label>
               <Input value={profileForm.zentra_uuid} onChange={(e) => setProfileForm({ ...profileForm, zentra_uuid: e.target.value })} placeholder="device-uuid-xxx" className="bg-secondary/30 font-mono text-xs" />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs">Zentra API Token</Label>
+              <Label className="text-xs">API Token</Label>
               <Input type="password" value={profileForm.zentra_api_token} onChange={(e) => setProfileForm({ ...profileForm, zentra_api_token: e.target.value })} placeholder="Bearer token..." className="bg-secondary/30 font-mono text-xs" />
             </div>
             <div className="grid grid-cols-2 gap-3">

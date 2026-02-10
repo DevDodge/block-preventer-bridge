@@ -17,6 +17,7 @@ import {
   ChevronRight,
   Activity,
   Zap,
+  BookOpen,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
@@ -35,6 +36,7 @@ const navItems = [
   { path: "/analytics", icon: BarChart3, label: "Analytics", shortLabel: "Stats" },
   { path: "/alerts", icon: Bell, label: "Alerts", shortLabel: "Alert" },
   { path: "/settings", icon: Settings, label: "Settings", shortLabel: "Set" },
+  { path: "/manual", icon: BookOpen, label: "User Manual", shortLabel: "Help" },
 ];
 
 export default function DashboardLayout({ children }: DashboardLayoutProps) {

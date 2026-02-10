@@ -236,7 +236,7 @@ export default function Home() {
                   </div>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-xs text-muted-foreground">Zentra API</span>
+                  <span className="text-xs text-muted-foreground">WhatsApp API</span>
                   <div className="flex items-center gap-1.5">
                     <span className="h-2 w-2 rounded-full bg-amber-warn" />
                     <span className="text-xs font-mono text-amber-warn">Standby</span>
