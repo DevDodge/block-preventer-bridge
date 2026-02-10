@@ -88,6 +88,8 @@ class MessageService:
             # not just current queue state. Check both:
             # 1. Last pending queue item for this profile (if queue has items)
             # 2. Profile's last_message_at (last time a message was actually sent)
+            # NOTE: We flush after each queue item to prevent race conditions
+            # between concurrent API requests
             last_pending_result = await self.db.execute(
                 select(func.max(MessageQueue.scheduled_send_at)).where(
                     MessageQueue.profile_id == profile_id,
@@ -193,6 +195,9 @@ class MessageService:
                     max_attempts=package.retry_attempts
                 )
                 self.db.add(queue_item)
+                # Flush immediately so concurrent API requests see this item
+                await self.db.flush()
+
             
             # Build limits status (use per-profile limits if set)
             stats = profile.statistics
