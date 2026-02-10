@@ -13,6 +13,7 @@ from app.models.models import (
 )
 from app.services.distribution_service import DistributionService
 from app.services.cooldown_service import CooldownService
+from app.services.global_queue_service import GlobalQueueService
 from app.integrations.zentra.client import ZentraClient
 
 logger = logging.getLogger(__name__)
@@ -27,6 +28,10 @@ class MessageService:
     async def send_open_chat(self, package_id: UUID, data: dict) -> dict:
         """
         Send Open Chat message - distributed across profiles with rate limiting.
+        
+        Uses the GlobalQueueService to ensure consistent timing regardless of
+        whether recipients arrive in a single multi-recipient request or multiple
+        single-recipient requests.
         """
         # Get package
         pkg_result = await self.db.execute(
@@ -63,16 +68,94 @@ class MessageService:
         
         message.distribution_result = distribution
         
-        # Create queue items for each recipient
+        # Calculate cooldown for each profile
         cooldown_service = CooldownService(self.db)
+        cooldown_per_profile = {}
         limits_status = {}
+        
         send_immediately = data.get("send_immediately", False)
         immediate_sent = False
         
-        for profile_id_str, profile_recipients in distribution.items():
+        # If send_immediately, handle the first recipient directly
+        if send_immediately:
+            # Find the first profile and first recipient
+            for profile_id_str, profile_recipients in distribution.items():
+                if not profile_recipients:
+                    continue
+                    
+                profile_id = UUID(profile_id_str)
+                prof_result = await self.db.execute(
+                    select(Profile).options(selectinload(Profile.statistics)).where(Profile.id == profile_id)
+                )
+                profile = prof_result.scalar_one_or_none()
+                if not profile:
+                    continue
+                
+                first_recipient = profile_recipients[0]
+                
+                # Send immediately via Zentra
+                zentra = ZentraClient(profile.zentra_api_token, profile.zentra_uuid)
+                result = await zentra.send_message(
+                    recipient=first_recipient,
+                    message_type=message.message_type,
+                    content=message.content,
+                    media_url=message.media_url,
+                    caption=message.caption
+                )
+                
+                # Create delivery log
+                delivery_log = DeliveryLog(
+                    message_id=message.id,
+                    profile_id=profile.id,
+                    recipient=first_recipient,
+                    message_mode="open",
+                    status="sent" if result["success"] else "failed",
+                    zentra_message_id=result.get("data", {}).get("message_id"),
+                    response_time_ms=result.get("response_time_ms", 0),
+                    error_message=result.get("data", {}).get("error") if not result["success"] else None,
+                    sent_at=datetime.now(timezone.utc) if result["success"] else None
+                )
+                self.db.add(delivery_log)
+                
+                # Update message counts
+                message.processed_count += 1
+                if result["success"]:
+                    message.success_count += 1
+                    routing_result = await self.db.execute(
+                        select(ConversationRouting).where(
+                            ConversationRouting.package_id == package_id,
+                            ConversationRouting.customer_phone == first_recipient
+                        )
+                    )
+                    routing = routing_result.scalar_one_or_none()
+                    if not routing:
+                        new_routing = ConversationRouting(
+                            package_id=package_id,
+                            customer_phone=first_recipient,
+                            assigned_profile_id=profile.id,
+                            last_interaction_at=datetime.now(timezone.utc)
+                        )
+                        self.db.add(new_routing)
+                    else:
+                        routing.assigned_profile_id = profile.id
+                        routing.last_interaction_at = datetime.now(timezone.utc)
+                else:
+                    message.failed_count += 1
+                
+                await self._update_profile_stats(profile.id, result["success"], result.get("response_time_ms", 0))
+                profile.last_message_at = datetime.now(timezone.utc)
+                
+                # Remove the first recipient from the distribution
+                distribution[profile_id_str] = profile_recipients[1:]
+                immediate_sent = True
+                break
+        
+        # Remove empty profile entries from distribution
+        distribution = {k: v for k, v in distribution.items() if v}
+        
+        # Calculate cooldowns for all profiles that still have recipients
+        for profile_id_str in distribution.keys():
             profile_id = UUID(profile_id_str)
-            
-            # Get profile
             prof_result = await self.db.execute(
                 select(Profile).options(selectinload(Profile.statistics)).where(Profile.id == profile_id)
             )
@@ -80,126 +163,10 @@ class MessageService:
             if not profile:
                 continue
             
-            # Calculate cooldown for this profile
             cooldown_info = await cooldown_service.calculate_cooldown(package, profile)
+            cooldown_per_profile[profile_id_str] = cooldown_info["cooldown_seconds"]
             
-            # Create queue items with staggered send times
-            # GLOBAL QUEUE AWARENESS: Schedule based on actual message distribution,
-            # not just current queue state. Check both:
-            # 1. Last pending queue item for this profile (if queue has items)
-            # 2. Profile's last_message_at (last time a message was actually sent)
-            # NOTE: We flush after each queue item to prevent race conditions
-            # between concurrent API requests
-            last_pending_result = await self.db.execute(
-                select(func.max(MessageQueue.scheduled_send_at)).where(
-                    MessageQueue.profile_id == profile_id,
-                    MessageQueue.status == "waiting"
-                )
-            )
-            last_pending_time = last_pending_result.scalar()
-            now = datetime.now(timezone.utc)
-            cooldown_secs = cooldown_info["cooldown_seconds"]
-            
-            # Determine the latest reference point for this profile
-            reference_time = now
-            reference_source = "now"
-            
-            if last_pending_time and last_pending_time > reference_time:
-                reference_time = last_pending_time
-                reference_source = "last_pending_queue_item"
-            
-            if profile.last_message_at:
-                # The earliest we can send based on last sent message
-                earliest_after_last_sent = profile.last_message_at + timedelta(seconds=cooldown_secs)
-                if earliest_after_last_sent > reference_time:
-                    reference_time = earliest_after_last_sent
-                    reference_source = "last_message_at"
-            
-            base_time = reference_time
-            logger.info(f"Global queue: profile {profile_id} base_time={base_time.isoformat()} "
-                       f"(source={reference_source}, cooldown={cooldown_secs}s, "
-                       f"last_message_at={profile.last_message_at})")
-            
-            for i, recipient in enumerate(profile_recipients):
-                # If send_immediately is True, send the very first recipient immediately
-                if send_immediately and not immediate_sent:
-                    # Send immediately via Zentra
-                    zentra = ZentraClient(profile.zentra_api_token, profile.zentra_uuid)
-                    result = await zentra.send_message(
-                        recipient=recipient,
-                        message_type=message.message_type,
-                        content=message.content,
-                        media_url=message.media_url,
-                        caption=message.caption
-                    )
-                    
-                    # Create delivery log
-                    delivery_log = DeliveryLog(
-                        message_id=message.id,
-                        profile_id=profile.id,
-                        recipient=recipient,
-                        message_mode="open",
-                        status="sent" if result["success"] else "failed",
-                        zentra_message_id=result.get("data", {}).get("message_id"),
-                        response_time_ms=result.get("response_time_ms", 0),
-                        error_message=result.get("data", {}).get("error") if not result["success"] else None,
-                        sent_at=datetime.now(timezone.utc) if result["success"] else None
-                    )
-                    self.db.add(delivery_log)
-                    
-                    # Update message counts
-                    message.processed_count += 1
-                    if result["success"]:
-                        message.success_count += 1
-                        # Update conversation routing
-                        routing_result = await self.db.execute(
-                            select(ConversationRouting).where(
-                                ConversationRouting.package_id == package_id,
-                                ConversationRouting.customer_phone == recipient
-                            )
-                        )
-                        routing = routing_result.scalar_one_or_none()
-                        if not routing:
-                            new_routing = ConversationRouting(
-                                package_id=package_id,
-                                customer_phone=recipient,
-                                assigned_profile_id=profile.id,
-                                last_interaction_at=datetime.now(timezone.utc)
-                            )
-                            self.db.add(new_routing)
-                        else:
-                            routing.assigned_profile_id = profile.id
-                            routing.last_interaction_at = datetime.now(timezone.utc)
-                    else:
-                        message.failed_count += 1
-                    
-                    # Update profile statistics
-                    await self._update_profile_stats(profile.id, result["success"], result.get("response_time_ms", 0))
-                    profile.last_message_at = datetime.now(timezone.utc)
-                    
-                    immediate_sent = True
-                    continue
-
-                send_at = base_time + timedelta(seconds=cooldown_info["cooldown_seconds"] * i)
-                
-                queue_item = MessageQueue(
-                    message_id=message.id,
-                    profile_id=profile_id,
-                    recipient=recipient,
-                    message_type=message.message_type,
-                    content=message.content,
-                    media_url=message.media_url,
-                    caption=message.caption,
-                    status="waiting",
-                    scheduled_send_at=send_at,
-                    max_attempts=package.retry_attempts
-                )
-                self.db.add(queue_item)
-                # Flush immediately so concurrent API requests see this item
-                await self.db.flush()
-
-            
-            # Build limits status (use per-profile limits if set)
+            # Build limits status
             stats = profile.statistics
             sent_hour = stats.messages_sent_hour if stats else 0
             sent_day = stats.messages_sent_today if stats else 0
@@ -210,6 +177,16 @@ class MessageService:
                 "daily": f"{sent_day}/{p_daily}",
                 "status": profile.status
             }
+        
+        # Use the GlobalQueueService to schedule all remaining recipients
+        if distribution:
+            global_queue = GlobalQueueService(self.db)
+            await global_queue.schedule_recipients(
+                package=package,
+                message=message,
+                distribution=distribution,
+                cooldown_per_profile=cooldown_per_profile
+            )
         
         await self.db.flush()
         
@@ -325,7 +302,6 @@ class MessageService:
         # Update conversation routing
         if routing:
             routing.last_interaction_at = datetime.now(timezone.utc)
-            # Ensure the profile is still the same (it should be, but just in case)
             routing.assigned_profile_id = profile.id
         else:
             new_routing = ConversationRouting(
@@ -762,4 +738,3 @@ class MessageService:
         
         await self.db.flush()
         return result.rowcount
-

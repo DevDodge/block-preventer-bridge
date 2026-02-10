@@ -108,6 +108,8 @@ class SchedulingService:
         """
         Check for scheduled messages that are ready to be sent.
         Called periodically by the background task runner.
+        
+        Uses the GlobalQueueService for consistent scheduling.
         """
         now = datetime.now(timezone.utc)
 
@@ -126,21 +128,10 @@ class SchedulingService:
                 message.status = "queued"
                 await self.db.flush()
 
-                # Import here to avoid circular imports
-                from app.services.message_service import MessageService
-                msg_service = MessageService(self.db)
-
-                data = {
-                    "recipients": message.recipients or [],
-                    "content": message.content,
-                    "message_type": message.message_type,
-                    "media_url": message.media_url,
-                    "caption": message.caption,
-                }
-
-                # Re-use the open chat flow to distribute and queue
+                # Use the GlobalQueueService for proper scheduling
                 from app.services.distribution_service import DistributionService
                 from app.services.cooldown_service import CooldownService
+                from app.services.global_queue_service import GlobalQueueService
 
                 pkg_result = await self.db.execute(
                     select(Package).where(Package.id == message.package_id)
@@ -156,9 +147,9 @@ class SchedulingService:
                 message.distribution_result = distribution
 
                 cooldown_service = CooldownService(self.db)
-                base_time = datetime.now(timezone.utc)
+                cooldown_per_profile = {}
 
-                for profile_id_str, profile_recipients in distribution.items():
+                for profile_id_str in distribution.keys():
                     profile_id = UUID(profile_id_str)
                     prof_result = await self.db.execute(
                         select(Profile).where(Profile.id == profile_id)
@@ -168,28 +159,22 @@ class SchedulingService:
                         continue
 
                     cooldown_info = await cooldown_service.calculate_cooldown(package, profile)
+                    cooldown_per_profile[profile_id_str] = cooldown_info["cooldown_seconds"]
 
-                    for i, recipient in enumerate(profile_recipients):
-                        send_at = base_time + timedelta(seconds=cooldown_info["cooldown_seconds"] * i)
-                        queue_item = MessageQueue(
-                            message_id=message.id,
-                            profile_id=profile_id,
-                            recipient=recipient,
-                            message_type=message.message_type,
-                            content=message.content,
-                            media_url=message.media_url,
-                            caption=message.caption,
-                            status="waiting",
-                            scheduled_send_at=send_at,
-                            max_attempts=package.retry_attempts
-                        )
-                        self.db.add(queue_item)
+                # Use GlobalQueueService for scheduling
+                global_queue = GlobalQueueService(self.db)
+                await global_queue.schedule_recipients(
+                    package=package,
+                    message=message,
+                    distribution=distribution,
+                    cooldown_per_profile=cooldown_per_profile
+                )
 
                 message.status = "queued"
                 await self.db.flush()
                 processed += 1
 
-                logger.info(f"Scheduled message {message.id} now queued for delivery")
+                logger.info(f"Scheduled message {message.id} now queued for delivery via global queue")
 
             except Exception as e:
                 logger.error(f"Error processing scheduled message {message.id}: {e}")
@@ -339,4 +324,3 @@ class SchedulingService:
             }
             for item in items
         ]
-
