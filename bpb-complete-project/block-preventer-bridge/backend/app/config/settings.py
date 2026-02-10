@@ -16,11 +16,11 @@ class Settings(BaseSettings):
     # Database
     DATABASE_URL: str = os.getenv(
         "DATABASE_URL",
-        "postgresql+asyncpg://postgres:Eng.OctoBot-DK-Kareem-DODGE.12@178.63.34.211:10034/block_preventer_bridge"
+        "postgresql+asyncpg://postgres:Eng.OctoBot-DK-Kareem-DODGE.12@localhost:10034/block_preventer_bridge"
     )
     DATABASE_URL_SYNC: str = os.getenv(
         "DATABASE_URL_SYNC",
-        "postgresql://postgres:Eng.OctoBot-DK-Kareem-DODGE.12@178.63.34.211:10034/block_preventer_bridge"
+        "postgresql://postgres:Eng.OctoBot-DK-Kareem-DODGE.12@localhost:10034/block_preventer_bridge"
     )
     
     # Zentra API

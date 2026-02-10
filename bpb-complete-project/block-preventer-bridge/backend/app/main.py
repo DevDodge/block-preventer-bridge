@@ -145,11 +145,14 @@ async def lifespan(app: FastAPI):
     
     # Add new columns to existing tables (create_all doesn't add columns to existing tables)
     try:
-        async with engine.begin() as conn:
-            await conn.execute(
-                text("ALTER TABLE packages ADD COLUMN IF NOT EXISTS auto_adjust_interval_minutes INTEGER DEFAULT 360")
-            )
+        async with asyncio.timeout(10):  # 10 second timeout
+            async with engine.begin() as conn:
+                await conn.execute(
+                    text("ALTER TABLE packages ADD COLUMN IF NOT EXISTS auto_adjust_interval_minutes INTEGER DEFAULT 360")
+                )
         logger.info("Database migration: auto_adjust_interval_minutes column verified")
+    except asyncio.TimeoutError:
+        logger.warning("Database migration timed out - skipping ALTER TABLE (will retry on next restart)")
     except Exception as e:
         logger.warning(f"Could not add auto_adjust_interval_minutes column (may already exist or need admin): {e}")
     
