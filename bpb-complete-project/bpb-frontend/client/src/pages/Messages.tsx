@@ -413,8 +413,8 @@ export default function Messages() {
 
                     {/* Hover tooltip for message content */}
                     {contentDisplayMode === "hover" && item.content && (
-                      <div className="absolute left-0 right-0 -bottom-1 translate-y-full z-50 hidden group-hover:block">
-                        <div className="mx-4 mt-1 p-3 rounded-lg bg-popover border border-primary/20 shadow-lg shadow-black/50">
+                      <div className="col-span-12 hidden group-hover:block animate-in fade-in slide-in-from-top-1 duration-200 pt-2">
+                        <div className="p-3 rounded-lg bg-secondary/20 border border-primary/10">
                           <div className="flex items-center gap-1.5 mb-1.5">
                             <Eye className="h-3 w-3 text-primary" />
                             <span className="text-[10px] font-mono text-primary uppercase">Message Content</span>

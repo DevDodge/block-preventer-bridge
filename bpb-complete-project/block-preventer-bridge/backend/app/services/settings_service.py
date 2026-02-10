@@ -26,6 +26,7 @@ DEFAULT_SETTINGS = {
     "email_notifications_enabled": False,
     "theme": "dark",
     "timezone": "UTC",
+    "message_content_display": "hover",
 }
 
 
@@ -65,6 +66,7 @@ class SettingsService:
             "email_notifications_enabled": settings.email_notifications_enabled,
             "theme": settings.theme or "dark",
             "timezone": settings.timezone or "UTC",
+            "message_content_display": settings.message_content_display or "hover",
             "updated_at": settings.updated_at.isoformat() if settings.updated_at else None,
         }
 
