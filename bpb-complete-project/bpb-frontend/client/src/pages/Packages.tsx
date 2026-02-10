@@ -37,7 +37,7 @@ export default function Packages() {
     max_concurrent_sends: 4, freeze_duration_hours: 4,
     rush_hour_threshold: 10, rush_hour_multiplier: 2.0,
     quiet_mode_threshold: 5, quiet_mode_multiplier: 0.5,
-    auto_adjust_limits: true, auto_pause_on_failures: true,
+    auto_adjust_limits: true, auto_adjust_interval_minutes: 360, auto_pause_on_failures: true,
     retry_failed_messages: true, retry_attempts: 3,
   });
 
@@ -92,6 +92,7 @@ export default function Packages() {
         quiet_mode_threshold: full.quiet_mode_threshold,
         quiet_mode_multiplier: full.quiet_mode_multiplier,
         auto_adjust_limits: full.auto_adjust_limits,
+        auto_adjust_interval_minutes: full.auto_adjust_interval_minutes || 360,
         auto_pause_on_failures: full.auto_pause_on_failures,
         retry_failed_messages: full.retry_failed_messages,
         retry_attempts: full.retry_attempts,
@@ -385,6 +386,13 @@ function PackageFormDialog({ open, onOpenChange, title, form, setForm, onSubmit,
                 </div>
                 <Switch checked={form.auto_adjust_limits} onCheckedChange={(v) => setForm({ ...form, auto_adjust_limits: v })} />
               </div>
+              {form.auto_adjust_limits && (
+                <div className="space-y-1.5 pl-4">
+                  <Label className="text-xs">Adjust Interval (minutes)</Label>
+                  <p className="text-[10px] text-muted-foreground">How often auto-adjust can modify limits</p>
+                  <Input type="number" value={form.auto_adjust_interval_minutes} onChange={(e) => setForm({ ...form, auto_adjust_interval_minutes: +e.target.value })} className="bg-secondary/30 font-mono max-w-[160px]" min={30} />
+                </div>
+              )}
               <div className="flex items-center justify-between rounded-md bg-secondary/30 p-3">
                 <div>
                   <p className="text-sm text-foreground">Auto-Pause on Failures</p>

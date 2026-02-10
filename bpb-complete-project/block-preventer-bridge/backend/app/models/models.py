@@ -42,6 +42,7 @@ class Package(Base):
     
     # Auto-adjustment
     auto_adjust_limits = Column(Boolean, default=True)
+    auto_adjust_interval_minutes = Column(Integer, default=360)  # Default: 6 hours
     auto_pause_on_failures = Column(Boolean, default=False)
     auto_pause_failure_threshold = Column(Integer, default=5)
     auto_pause_success_rate_threshold = Column(Float, default=50.0)
@@ -84,6 +85,10 @@ class Profile(Base):
     max_messages_per_hour = Column(Integer, nullable=True)  # None = use package limit
     max_messages_per_3hours = Column(Integer, nullable=True)
     max_messages_per_day = Column(Integer, nullable=True)
+    
+    # Per-profile auto-adjust (None = inherit from package)
+    auto_adjust_limits = Column(Boolean, nullable=True)  # None = use package setting
+    auto_adjust_interval_minutes = Column(Integer, nullable=True)  # None = use package default
     
     # Health
     health_score = Column(Integer, default=100)

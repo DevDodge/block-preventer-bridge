@@ -31,6 +31,20 @@ class AutoAdjustService:
         if not package.auto_adjust_limits:
             return {"adjusted": False, "reason": "Auto-adjust is disabled"}
 
+        # Cooldown: only auto-adjust once per configured interval to prevent cascading changes
+        interval_minutes = getattr(package, 'auto_adjust_interval_minutes', 360) or 360
+        cooldown_ago = datetime.now(timezone.utc) - timedelta(minutes=interval_minutes)
+        recent_adjust = await self.db.execute(
+            select(func.count(Alert.id)).where(
+                Alert.package_id == package.id,
+                Alert.alert_type == "system",
+                Alert.title.like(f"Rate Limits Auto-Adjusted: {package.name}%"),
+                Alert.created_at >= cooldown_ago
+            )
+        )
+        if (recent_adjust.scalar() or 0) > 0:
+            return {"adjusted": False, "reason": f"Already adjusted within last {interval_minutes} minutes"}
+
         # Get all profiles with stats
         profiles_result = await self.db.execute(
             select(Profile).where(Profile.package_id == package.id)

@@ -1,6 +1,7 @@
 """Block Preventer Bridge - FastAPI Application Entry Point."""
 import asyncio
 import logging
+from sqlalchemy import text
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -141,6 +142,16 @@ async def lifespan(app: FastAPI):
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     logger.info("Database tables verified/created")
+    
+    # Add new columns to existing tables (create_all doesn't add columns to existing tables)
+    try:
+        async with engine.begin() as conn:
+            await conn.execute(
+                text("ALTER TABLE packages ADD COLUMN IF NOT EXISTS auto_adjust_interval_minutes INTEGER DEFAULT 360")
+            )
+        logger.info("Database migration: auto_adjust_interval_minutes column verified")
+    except Exception as e:
+        logger.warning(f"Could not add auto_adjust_interval_minutes column (may already exist or need admin): {e}")
     
     # Start background tasks
     _background_task = asyncio.create_task(background_processor())

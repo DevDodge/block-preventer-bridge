@@ -97,6 +97,7 @@ export default function PackageDetail() {
       quiet_mode_multiplier: pkg.quiet_mode_multiplier,
       retry_attempts: pkg.retry_attempts,
       auto_adjust_limits: pkg.auto_adjust_limits,
+      auto_adjust_interval_minutes: pkg.auto_adjust_interval_minutes || 360,
       auto_pause_on_failures: pkg.auto_pause_on_failures,
       retry_failed_messages: pkg.retry_failed_messages,
     });
@@ -123,6 +124,8 @@ export default function PackageDetail() {
       max_messages_per_hour: profile.max_messages_per_hour ?? "",
       max_messages_per_3hours: profile.max_messages_per_3hours ?? "",
       max_messages_per_day: profile.max_messages_per_day ?? "",
+      auto_adjust_limits: profile.auto_adjust_limits,
+      auto_adjust_interval_minutes: profile.auto_adjust_interval_minutes ?? "",
     });
     setShowProfileSettings(true);
   };
@@ -149,6 +152,13 @@ export default function PackageDetail() {
         payload.max_messages_per_day = Number(profileSettingsForm.max_messages_per_day);
       } else {
         payload.max_messages_per_day = null;
+      }
+      // Auto-adjust settings
+      payload.auto_adjust_limits = profileSettingsForm.auto_adjust_limits;
+      if (profileSettingsForm.auto_adjust_interval_minutes !== "" && profileSettingsForm.auto_adjust_interval_minutes !== null) {
+        payload.auto_adjust_interval_minutes = Number(profileSettingsForm.auto_adjust_interval_minutes);
+      } else {
+        payload.auto_adjust_interval_minutes = null;
       }
       await profilesApi.update(packageId, editingProfileId, payload);
       toast.success("Profile settings updated");
@@ -208,7 +218,7 @@ export default function PackageDetail() {
         {/* Quick Stats */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {[
-            { label: "Profiles", value: pkg.total_profiles, sub: `${pkg.active_profiles} active`, color: "text-cyan" },
+            { label: "Profiles", value: pkg.total_profiles, sub: `${pkg.active_profiles} active`, color: "text-primary" },
             { label: "Today", value: stats?.total_messages_today || 0, sub: `${stats?.total_messages_hour || 0}/hr`, color: "text-primary" },
             { label: "Queue", value: pkg.queue_size, sub: pkg.queue_mode, color: "text-amber-warn" },
             { label: "Failed", value: stats?.total_failed || 0, sub: "today", color: "text-coral" },
@@ -258,19 +268,19 @@ export default function PackageDetail() {
                         <CardContent className="p-4">
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-4">
-                              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-cyan/10 border border-cyan/20">
-                                <Users className="h-5 w-5 text-cyan" />
+                              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 border border-primary/20">
+                                <Users className="h-5 w-5 text-primary" />
                               </div>
                               <div>
                                 <div className="flex items-center gap-2">
                                   <p className="text-sm font-semibold text-foreground">{profile.name}</p>
                                   <Badge className={
                                     profile.status === "active" ? "bg-emerald/15 text-emerald border-emerald/30 text-[10px]" :
-                                    profile.status === "paused" ? "bg-amber-warn/15 text-amber-warn border-amber-warn/30 text-[10px]" :
-                                    "bg-secondary text-muted-foreground text-[10px]"
+                                      profile.status === "paused" ? "bg-amber-warn/15 text-amber-warn border-amber-warn/30 text-[10px]" :
+                                        "bg-secondary text-muted-foreground text-[10px]"
                                   }>{profile.status}</Badge>
                                   {hasCustomLimits && (
-                                    <Badge variant="outline" className="border-cyan/30 text-cyan text-[9px]">Custom Limits</Badge>
+                                    <Badge variant="outline" className="border-primary/30 text-primary text-[9px]">Custom Limits</Badge>
                                   )}
                                 </div>
                                 <p className="text-xs text-muted-foreground">{profile.phone_number || "No phone"} · Priority: {profile.manual_priority}</p>
@@ -303,7 +313,7 @@ export default function PackageDetail() {
                               {/* Actions */}
                               <div className="flex items-center gap-1">
                                 <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => openProfileSettings(profile)} title="Profile Settings">
-                                  <Settings className="h-3.5 w-3.5 text-muted-foreground hover:text-cyan" />
+                                  <Settings className="h-3.5 w-3.5 text-muted-foreground hover:text-primary" />
                                 </Button>
                                 <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => viewHealth(profile.id)} title="View Health">
                                   <Heart className="h-3.5 w-3.5 text-muted-foreground hover:text-primary" />
@@ -331,7 +341,7 @@ export default function PackageDetail() {
                                   <div className="flex justify-between text-[10px]">
                                     <span className="text-muted-foreground">
                                       {bar.label}
-                                      {bar.custom && <span className="text-cyan ml-1">*</span>}
+                                      {bar.custom && <span className="text-primary ml-1">*</span>}
                                     </span>
                                     <span className="font-mono text-muted-foreground">{bar.used}/{bar.max}</span>
                                   </div>
@@ -505,7 +515,7 @@ export default function PackageDetail() {
       <Dialog open={showProfileSettings} onOpenChange={setShowProfileSettings}>
         <DialogContent className="bg-card border-border max-w-md">
           <DialogHeader>
-            <DialogTitle className="font-mono flex items-center gap-2"><Settings className="h-4 w-4 text-cyan" /> Profile Settings</DialogTitle>
+            <DialogTitle className="font-mono flex items-center gap-2"><Settings className="h-4 w-4 text-primary" /> Profile Settings</DialogTitle>
             <DialogDescription className="text-xs text-muted-foreground">
               Set per-profile rate limits. Leave empty to use package defaults.
             </DialogDescription>
@@ -532,7 +542,7 @@ export default function PackageDetail() {
 
             {/* Per-Profile Rate Limits */}
             <div className="space-y-3">
-              <h4 className="text-xs font-mono text-cyan uppercase tracking-wider">Rate Limits (Override Package)</h4>
+              <h4 className="text-xs font-mono text-primary uppercase tracking-wider">Rate Limits (Override Package)</h4>
               <p className="text-[10px] text-muted-foreground">
                 Leave empty to use package defaults ({pkg?.max_messages_per_hour}/hr, {pkg?.max_messages_per_3hours}/3hr, {pkg?.max_messages_per_day}/day)
               </p>
@@ -569,10 +579,50 @@ export default function PackageDetail() {
                 </div>
               </div>
             </div>
+
+            {/* Per-Profile Auto-Adjust */}
+            <div className="space-y-3">
+              <h4 className="text-xs font-mono text-primary uppercase tracking-wider">Auto-Adjust (Override Package)</h4>
+              <p className="text-[10px] text-muted-foreground">
+                Override the package auto-adjust setting for this profile. Leave as "Inherit" to use the package setting.
+              </p>
+              <div className="space-y-2">
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Auto-Adjust Limits</Label>
+                  <select
+                    value={profileSettingsForm.auto_adjust_limits === null || profileSettingsForm.auto_adjust_limits === undefined ? "inherit" : profileSettingsForm.auto_adjust_limits ? "enabled" : "disabled"}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      setProfileSettingsForm({
+                        ...profileSettingsForm,
+                        auto_adjust_limits: v === "inherit" ? null : v === "enabled",
+                      });
+                    }}
+                    className="w-full rounded-md border border-border bg-secondary/30 px-3 py-2 text-xs font-mono text-foreground"
+                  >
+                    <option value="inherit">Inherit from Package ({pkg?.auto_adjust_limits ? "Enabled" : "Disabled"})</option>
+                    <option value="enabled">Enabled</option>
+                    <option value="disabled">Disabled</option>
+                  </select>
+                </div>
+                {(profileSettingsForm.auto_adjust_limits === true || (profileSettingsForm.auto_adjust_limits === null && pkg?.auto_adjust_limits)) && (
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Adjust Interval (minutes)</Label>
+                    <Input
+                      type="number" min={30}
+                      value={profileSettingsForm.auto_adjust_interval_minutes}
+                      onChange={(e) => setProfileSettingsForm({ ...profileSettingsForm, auto_adjust_interval_minutes: e.target.value === "" ? "" : +e.target.value })}
+                      placeholder={`Package default: ${pkg?.auto_adjust_interval_minutes || 360}`}
+                      className="bg-secondary/30 font-mono"
+                    />
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowProfileSettings(false)}>Cancel</Button>
-            <Button onClick={handleSaveProfileSettings} className="bg-cyan text-white gap-2"><Settings className="h-3.5 w-3.5" /> Save Profile Settings</Button>
+            <Button onClick={handleSaveProfileSettings} className="bg-primary text-primary-foreground gap-2"><Settings className="h-3.5 w-3.5" /> Save Profile Settings</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -611,7 +661,7 @@ export default function PackageDetail() {
               {/* Limits Usage */}
               {healthData.limits_usage && (
                 <div className="space-y-2">
-                  <h4 className="text-xs font-mono text-cyan uppercase">Limits Usage</h4>
+                  <h4 className="text-xs font-mono text-primary uppercase">Limits Usage</h4>
                   {Object.entries(healthData.limits_usage).map(([key, val]: any) => (
                     <div key={key} className="space-y-1">
                       <div className="flex justify-between text-[10px]">
@@ -766,6 +816,13 @@ export default function PackageDetail() {
                   <Label className="text-xs cursor-pointer">Auto-Adjust Limits</Label>
                   <input type="checkbox" checked={settingsForm.auto_adjust_limits} onChange={(e) => setSettingsForm({ ...settingsForm, auto_adjust_limits: e.target.checked })} className="h-4 w-4 cursor-pointer" />
                 </div>
+                {settingsForm.auto_adjust_limits && (
+                  <div className="space-y-1.5 pl-4 pb-1">
+                    <Label className="text-xs">Adjust Interval (minutes)</Label>
+                    <p className="text-[10px] text-muted-foreground">How often auto-adjust can modify limits</p>
+                    <Input type="number" value={settingsForm.auto_adjust_interval_minutes} onChange={(e) => setSettingsForm({ ...settingsForm, auto_adjust_interval_minutes: +e.target.value })} className="bg-secondary/30 font-mono max-w-[160px]" min={30} />
+                  </div>
+                )}
                 <div className="flex items-center justify-between rounded-md bg-secondary/30 px-4 py-3">
                   <Label className="text-xs cursor-pointer">Auto-Pause on Failures</Label>
                   <input type="checkbox" checked={settingsForm.auto_pause_on_failures} onChange={(e) => setSettingsForm({ ...settingsForm, auto_pause_on_failures: e.target.checked })} className="h-4 w-4 cursor-pointer" />
