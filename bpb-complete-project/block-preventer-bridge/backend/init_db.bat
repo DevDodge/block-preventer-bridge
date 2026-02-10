@@ -26,6 +26,15 @@ if exist "venv" (
     echo [WARNING] Virtual environment not found. Using system Python.
 )
 
+REM Install dependencies
+echo [INFO] Installing/Verifying dependencies...
+pip install -r requirements.txt
+if %errorlevel% neq 0 (
+    echo [ERROR] Failed to install dependencies
+    pause
+    exit /b 1
+)
+
 REM Check if .env file exists
 if not exist ".env" (
     echo [WARNING] .env file not found!

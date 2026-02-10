@@ -26,6 +26,15 @@ if exist "venv" (
     call venv\Scripts\activate.bat
 )
 
+REM Install dependencies
+echo [INFO] Installing/Verifying dependencies...
+pip install -r requirements.txt
+if %errorlevel% neq 0 (
+    echo [ERROR] Failed to install dependencies
+    pause
+    exit /b 1
+)
+
 REM Run the sync script
 python sync_db.py
 
