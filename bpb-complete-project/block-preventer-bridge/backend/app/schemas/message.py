@@ -12,6 +12,7 @@ class OpenChatRequest(BaseModel):
     caption: Optional[str] = None
     recipients: List[str] = Field(..., min_length=1)
     scheduled_at: Optional[datetime] = None
+    send_immediately: bool = Field(default=False, description="If True, sends the first recipient's message immediately")
 
 
 class ReplyChatRequest(BaseModel):

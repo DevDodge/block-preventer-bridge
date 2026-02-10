@@ -66,6 +66,8 @@ class MessageService:
         # Create queue items for each recipient
         cooldown_service = CooldownService(self.db)
         limits_status = {}
+        send_immediately = data.get("send_immediately", False)
+        immediate_sent = False
         
         for profile_id_str, profile_recipients in distribution.items():
             profile_id = UUID(profile_id_str)
@@ -84,6 +86,65 @@ class MessageService:
             # Create queue items with staggered send times
             base_time = datetime.now(timezone.utc)
             for i, recipient in enumerate(profile_recipients):
+                # If send_immediately is True, send the very first recipient immediately
+                if send_immediately and not immediate_sent:
+                    # Send immediately via Zentra
+                    zentra = ZentraClient(profile.zentra_api_token, profile.zentra_uuid)
+                    result = await zentra.send_message(
+                        recipient=recipient,
+                        message_type=message.message_type,
+                        content=message.content,
+                        media_url=message.media_url,
+                        caption=message.caption
+                    )
+                    
+                    # Create delivery log
+                    delivery_log = DeliveryLog(
+                        message_id=message.id,
+                        profile_id=profile.id,
+                        recipient=recipient,
+                        message_mode="open",
+                        status="sent" if result["success"] else "failed",
+                        zentra_message_id=result.get("data", {}).get("message_id"),
+                        response_time_ms=result.get("response_time_ms", 0),
+                        error_message=result.get("data", {}).get("error") if not result["success"] else None,
+                        sent_at=datetime.now(timezone.utc) if result["success"] else None
+                    )
+                    self.db.add(delivery_log)
+                    
+                    # Update message counts
+                    message.processed_count += 1
+                    if result["success"]:
+                        message.success_count += 1
+                        # Update conversation routing
+                        routing_result = await self.db.execute(
+                            select(ConversationRouting).where(
+                                ConversationRouting.package_id == package_id,
+                                ConversationRouting.customer_phone == recipient
+                            )
+                        )
+                        routing = routing_result.scalar_one_or_none()
+                        if not routing:
+                            new_routing = ConversationRouting(
+                                package_id=package_id,
+                                customer_phone=recipient,
+                                assigned_profile_id=profile.id,
+                                last_interaction_at=datetime.now(timezone.utc)
+                            )
+                            self.db.add(new_routing)
+                        else:
+                            routing.assigned_profile_id = profile.id
+                            routing.last_interaction_at = datetime.now(timezone.utc)
+                    else:
+                        message.failed_count += 1
+                    
+                    # Update profile statistics
+                    await self._update_profile_stats(profile.id, result["success"], result.get("response_time_ms", 0))
+                    profile.last_message_at = datetime.now(timezone.utc)
+                    
+                    immediate_sent = True
+                    continue
+
                 send_at = base_time + timedelta(seconds=cooldown_info["cooldown_seconds"] * i)
                 
                 queue_item = MessageQueue(
