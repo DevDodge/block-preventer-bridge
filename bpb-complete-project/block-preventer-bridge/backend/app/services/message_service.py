@@ -84,7 +84,40 @@ class MessageService:
             cooldown_info = await cooldown_service.calculate_cooldown(package, profile)
             
             # Create queue items with staggered send times
-            base_time = datetime.now(timezone.utc)
+            # GLOBAL QUEUE AWARENESS: Schedule based on actual message distribution,
+            # not just current queue state. Check both:
+            # 1. Last pending queue item for this profile (if queue has items)
+            # 2. Profile's last_message_at (last time a message was actually sent)
+            last_pending_result = await self.db.execute(
+                select(func.max(MessageQueue.scheduled_send_at)).where(
+                    MessageQueue.profile_id == profile_id,
+                    MessageQueue.status == "waiting"
+                )
+            )
+            last_pending_time = last_pending_result.scalar()
+            now = datetime.now(timezone.utc)
+            cooldown_secs = cooldown_info["cooldown_seconds"]
+            
+            # Determine the latest reference point for this profile
+            reference_time = now
+            reference_source = "now"
+            
+            if last_pending_time and last_pending_time > reference_time:
+                reference_time = last_pending_time
+                reference_source = "last_pending_queue_item"
+            
+            if profile.last_message_at:
+                # The earliest we can send based on last sent message
+                earliest_after_last_sent = profile.last_message_at + timedelta(seconds=cooldown_secs)
+                if earliest_after_last_sent > reference_time:
+                    reference_time = earliest_after_last_sent
+                    reference_source = "last_message_at"
+            
+            base_time = reference_time
+            logger.info(f"Global queue: profile {profile_id} base_time={base_time.isoformat()} "
+                       f"(source={reference_source}, cooldown={cooldown_secs}s, "
+                       f"last_message_at={profile.last_message_at})")
+            
             for i, recipient in enumerate(profile_recipients):
                 # If send_immediately is True, send the very first recipient immediately
                 if send_immediately and not immediate_sent:
