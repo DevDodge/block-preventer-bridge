@@ -1,4 +1,4 @@
-"""Block Preventer Bridge - FastAPI Application Entry Point."""
+"""Whats Guard - FastAPI Application Entry Point."""
 import asyncio
 import logging
 from sqlalchemy import text
@@ -134,7 +134,7 @@ async def stats_reset_processor():
 async def lifespan(app: FastAPI):
     """Application lifespan - startup and shutdown."""
     global _background_task
-    logger.info("Starting Block Preventer Bridge...")
+    logger.info("Starting Whats Guard...")
     logger.info(f"Database: {settings.DATABASE_URL[:50]}...")
     
     # Create database tables if needed
@@ -165,7 +165,7 @@ async def lifespan(app: FastAPI):
         _background_task.cancel()
     if _stats_reset_task:
         _stats_reset_task.cancel()
-    logger.info("Shutting down Block Preventer Bridge...")
+    logger.info("Shutting down Whats Guard...")
 
 
 app = FastAPI(

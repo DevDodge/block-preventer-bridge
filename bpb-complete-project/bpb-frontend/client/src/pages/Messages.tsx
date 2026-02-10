@@ -447,7 +447,7 @@ export default function Messages() {
               <Send className="h-4 w-4 text-primary" /> Send Message
             </DialogTitle>
             <DialogDescription className="text-xs text-muted-foreground">
-              Messages are distributed through the Block Preventer Bridge
+              Messages are distributed through the Whats Guard
             </DialogDescription>
           </DialogHeader>
 

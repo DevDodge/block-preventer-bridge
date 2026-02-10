@@ -1,8 +1,8 @@
 {
     "info": {
         "_postman_id": "bpb-api-collection",
-        "name": "Block Preventer Bridge API",
-        "description": "Complete API collection for the Block Preventer Bridge WhatsApp message distribution system.\n\n## Getting Started\n1. Set the `base_url` variable to your API server (default: http://localhost:8000)\n2. Create a package first, then copy the package_id to the variable\n3. Add profiles to your package, copy profile_id to variable\n4. Send messages via Open Chat or Reply Chat endpoints\n\n## Key Concepts\n- **Package**: A container for profiles with rate limiting and distribution settings\n- **Profile**: A WhatsApp business profile (phone number) used for sending\n- **Open Chat**: New conversation (rate limited, queued)\n- **Reply Chat**: Reply to existing conversation (immediate, no limits)",
+        "name": "Whats Guard API",
+        "description": "Complete API collection for the Whats Guard WhatsApp message distribution system.\n\n## Getting Started\n1. Set the `base_url` variable to your API server (default: http://localhost:8000)\n2. Create a package first, then copy the package_id to the variable\n3. Add profiles to your package, copy profile_id to variable\n4. Send messages via Open Chat or Reply Chat endpoints\n\n## Key Concepts\n- **Package**: A container for profiles with rate limiting and distribution settings\n- **Profile**: A WhatsApp business profile (phone number) used for sending\n- **Open Chat**: New conversation (rate limited, queued)\n- **Reply Chat**: Reply to existing conversation (immediate, no limits)",
         "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
     },
     "variable": [
@@ -351,7 +351,7 @@
                         ],
                         "body": {
                             "mode": "raw",
-                            "raw": "{\n  \"message_type\": \"text\",\n  \"content\": \"Hello! This is a new conversation from Block Preventer Bridge.\",\n  \"recipients\": [\n    \"+201012345678\",\n    \"+201098765432\"\n  ]\n}"
+                            "raw": "{\n  \"message_type\": \"text\",\n  \"content\": \"Hello! This is a new conversation from Whats Guard.\",\n  \"recipients\": [\n    \"+201012345678\",\n    \"+201098765432\"\n  ]\n}"
                         },
                         "url": {
                             "raw": "{{base_url}}/packages/{{package_id}}/messages/open",

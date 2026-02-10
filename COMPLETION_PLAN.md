@@ -1,4 +1,4 @@
-# Block Preventer Bridge — Completion Plan & Approval Report
+# Whats Guard — Completion Plan & Approval Report
 
 **Date:** February 9, 2026  
 **Branch:** `feature/complete-project` (to be created)  

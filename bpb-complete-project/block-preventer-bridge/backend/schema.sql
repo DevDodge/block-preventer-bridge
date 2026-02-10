@@ -1,4 +1,4 @@
--- Block Preventer Bridge - Complete Database Schema
+-- Whats Guard - Complete Database Schema
 -- PostgreSQL
 
 -- Enable UUID extension

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Database Backup Script for Block Preventer Bridge
+Database Backup Script for Whats Guard
 Creates a SQL backup of the PostgreSQL database
 """
 
@@ -65,7 +65,7 @@ def backup_database():
         print(f"Found {len(tables)} tables: {', '.join(tables)}")
         
         with open(backup_file, 'w', encoding='utf-8') as f:
-            f.write(f"-- Block Preventer Bridge Database Backup\n")
+            f.write(f"-- Whats Guard Database Backup\n")
             f.write(f"-- Created: {datetime.now().isoformat()}\n")
             f.write(f"-- Database: {DB_CONFIG['database']}\n")
             f.write(f"-- Host: {DB_CONFIG['host']}:{DB_CONFIG['port']}\n")

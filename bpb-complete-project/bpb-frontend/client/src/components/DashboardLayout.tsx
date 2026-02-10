@@ -177,7 +177,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
           <div className="flex items-center gap-2">
             <Zap className="h-4 w-4 text-primary" />
             <span className="text-sm font-mono text-muted-foreground">
-              Block Preventer Bridge
+              Whats Guard
             </span>
           </div>
           <div className="flex items-center gap-4">

@@ -1,4 +1,4 @@
-# 🚀 دليل البدء السريع - Block Preventer Bridge
+# 🚀 دليل البدء السريع - Whats Guard
 
 **الوقت المتوقع:** 10 دقائق
 
@@ -108,7 +108,7 @@ pnpm dev
 3. اضغط **Send Message**
 4. املأ:
    - **Recipients:** +201234567890
-   - **Content:** Hello from Block Preventer Bridge!
+   - **Content:** Hello from Whats Guard!
 5. اضغط **Send**
 
 ---

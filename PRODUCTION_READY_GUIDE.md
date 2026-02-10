@@ -1,4 +1,4 @@
-# دليل تشغيل Block Preventer Bridge للإنتاج
+# دليل تشغيل Whats Guard للإنتاج
 
 **التاريخ:** 9 فبراير 2026  
 **الحالة:** ✅ جاهز للإنتاج
@@ -81,7 +81,7 @@ DATABASE_URL=postgresql+asyncpg://user:password@localhost/block_preventer_bridge
 # DATABASE_URL=mysql+aiomysql://user:password@localhost/block_preventer_bridge
 
 CORS_ORIGINS=http://localhost:5173,http://localhost:3000
-APP_NAME=Block Preventer Bridge
+APP_NAME=Whats Guard
 APP_VERSION=1.0.0
 EOF
 
@@ -238,7 +238,7 @@ curl -X POST "http://localhost:8000/api/v1/packages/{package_id}/messages/open" 
   -H "Content-Type: application/json" \
   -d '{
     "message_type": "text",
-    "content": "Hello from Block Preventer Bridge!",
+    "content": "Hello from Whats Guard!",
     "recipients": ["+201234567890", "+201234567891"]
   }'
 ```

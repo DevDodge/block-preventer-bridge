@@ -1,4 +1,4 @@
-# Block Preventer Bridge - Design Brainstorm
+# Whats Guard - Design Brainstorm
 
 ## Context
 A WhatsApp message distribution dashboard with package management, profile monitoring, message sending, analytics, and real-time health monitoring. Color palette extracted from the WhatsDeveloper logo: deep dark backgrounds, teal/cyan accents, silver/metallic tones, green highlights. Circuit board / tech aesthetic.

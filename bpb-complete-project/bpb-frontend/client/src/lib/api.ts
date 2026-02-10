@@ -1,5 +1,5 @@
 /**
- * API Client for Block Preventer Bridge Backend
+ * API Client for Whats Guard Backend
  * Uses relative paths — proxied through Vite dev server to FastAPI on port 8000
  */
 

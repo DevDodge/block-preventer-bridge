@@ -1,4 +1,4 @@
-# Block Preventer Bridge - Update Summary v1.0.2
+# Whats Guard - Update Summary v1.0.2
 
 ## 🎉 التحديثات الجديدة
 

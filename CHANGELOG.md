@@ -1,4 +1,4 @@
-# Changelog - Block Preventer Bridge
+# Changelog - Whats Guard
 
 جميع التغييرات المهمة في المشروع موثقة في هذا الملف.
 
