@@ -226,3 +226,206 @@ async def reply_image(req: ReplyImageRequest):
             message=f"Zentra API returned status {result['status_code']}",
             zentra_response=result["data"],
         )
+
+
+# ──────────────────────────────────────────────
+# Endpoint 2: Sequential Messages (MAIN FEATURE)
+# ──────────────────────────────────────────────
+
+def _should_skip_part(part: SequencePartRequest) -> bool:
+    """Return True if the part carries no meaningful payload and should be skipped."""
+    if part.type == "text":
+        return not part.text or not part.text.strip()
+    if part.type == "image":
+        return not part.imageLink or not part.imageLink.strip()
+    if part.type == "video":
+        return not part.videoLink or not part.videoLink.strip()
+    return True
+
+
+def _delay_for_part_type(part_type: str) -> int:
+    """Return the delay in milliseconds that should follow a sent part."""
+    if part_type in ("image", "video"):
+        return min(DELAY_AFTER_MEDIA_MS, MAX_DELAY_MS)
+    return min(DELAY_AFTER_TEXT_MS, MAX_DELAY_MS)
+
+
+def _build_form_fields(
+    device_uuid: str,
+    chat_id: str,
+    part: SequencePartRequest,
+) -> Dict[str, str]:
+    """Build the Zentra multipart/form-data fields for a single part."""
+    base = {
+        "device_uuid": device_uuid,
+        "type_contact": "numbers",
+        "ids": chat_id,
+    }
+
+    if part.type == "text":
+        base["type_message"] = "text"
+        base["text_message"] = part.text.strip()
+
+    elif part.type == "image":
+        base["type_message"] = "image"
+        base["media_url"] = part.imageLink.strip()
+        base["text_message"] = part.caption or ""
+
+    elif part.type == "video":
+        base["type_message"] = "video"
+        base["media_url"] = part.videoLink.strip()
+        base["text_message"] = part.caption or ""
+
+    return base
+
+
+@router.post(
+    "/messages/send-sequence",
+    response_model=SendSequenceResponse,
+    status_code=200,
+    summary="Send an ordered sequence of text, image, and video messages",
+)
+async def send_sequence(req: SendSequenceRequest):
+    """
+    Accept an ordered array of message parts (text, image, video) and send
+    them **one by one, sequentially** to a WhatsApp chat via the Zentra API.
+
+    Key guarantees
+    ──────────────
+    * **Strict ordering** – Part N+1 is never sent before Part N completes.
+    * **Controlled delays** – 2.5 s after text, 6 s after image/video,
+      capped at 15 s.  No delay after the last part.
+    * **Per-chat locking** – While a sequence is in-flight for a given
+      ``chat_id``, any concurrent request for the *same* chat_id will
+      block until the first sequence finishes.  Different chat_ids run
+      in parallel.
+    * **Resilient** – A failed part is logged but does not abort the
+      remaining parts.
+    * **Empty parts are skipped** – blank text or missing URLs are
+      silently skipped.
+    """
+    chat_id = req.chat_id
+    lock = _get_chat_lock(chat_id)
+
+    logger.info(
+        "send-sequence START  |  chat=%s  |  parts=%d",
+        chat_id,
+        len(req.parts),
+    )
+
+    results: List[SequencePartResult] = []
+    successful = 0
+    failed = 0
+    skipped = 0
+
+    # Acquire per-chat lock so no two sequences interleave for the same chat
+    async with lock:
+        for idx, part in enumerate(req.parts):
+            is_last = idx == len(req.parts) - 1
+
+            # ── Skip empty / invalid parts ──────────────────────
+            if _should_skip_part(part):
+                logger.info(
+                    "send-sequence SKIP   |  chat=%s  |  part=%d  |  type=%s",
+                    chat_id,
+                    idx,
+                    part.type,
+                )
+                results.append(
+                    SequencePartResult(
+                        part_index=idx,
+                        type=part.type,
+                        status="skipped",
+                        delay_after_ms=0,
+                    )
+                )
+                skipped += 1
+                continue
+
+            # ── Build form fields and send ──────────────────────
+            form_fields = _build_form_fields(req.device_uuid, chat_id, part)
+            delay_ms = 0 if is_last else _delay_for_part_type(part.type)
+
+            try:
+                zentra_result = await _send_to_zentra(req.api_key, form_fields)
+
+                if zentra_result["success"]:
+                    logger.info(
+                        "send-sequence OK     |  chat=%s  |  part=%d  |  type=%s  |  delay=%dms",
+                        chat_id,
+                        idx,
+                        part.type,
+                        delay_ms,
+                    )
+                    results.append(
+                        SequencePartResult(
+                            part_index=idx,
+                            type=part.type,
+                            status="success",
+                            zentra_response=zentra_result["data"],
+                            delay_after_ms=delay_ms,
+                        )
+                    )
+                    successful += 1
+                else:
+                    error_msg = (
+                        f"Zentra returned status {zentra_result['status_code']}"
+                    )
+                    logger.error(
+                        "send-sequence FAIL   |  chat=%s  |  part=%d  |  type=%s  |  error=%s",
+                        chat_id,
+                        idx,
+                        part.type,
+                        error_msg,
+                    )
+                    results.append(
+                        SequencePartResult(
+                            part_index=idx,
+                            type=part.type,
+                            status="error",
+                            error=error_msg,
+                            zentra_response=zentra_result["data"],
+                            delay_after_ms=delay_ms,
+                        )
+                    )
+                    failed += 1
+
+            except Exception as exc:
+                logger.exception(
+                    "send-sequence EXCEPTION  |  chat=%s  |  part=%d  |  type=%s",
+                    chat_id,
+                    idx,
+                    part.type,
+                )
+                results.append(
+                    SequencePartResult(
+                        part_index=idx,
+                        type=part.type,
+                        status="error",
+                        error=str(exc),
+                        delay_after_ms=delay_ms,
+                    )
+                )
+                failed += 1
+
+            # ── Delay before next part (skip after last) ────────
+            if not is_last and delay_ms > 0:
+                await asyncio.sleep(delay_ms / 1000.0)
+
+    logger.info(
+        "send-sequence DONE   |  chat=%s  |  ok=%d  |  fail=%d  |  skip=%d",
+        chat_id,
+        successful,
+        failed,
+        skipped,
+    )
+
+    return SendSequenceResponse(
+        status="completed",
+        chat_id=chat_id,
+        total_parts=len(req.parts),
+        successful=successful,
+        failed=failed,
+        skipped=skipped,
+        results=results,
+    )
