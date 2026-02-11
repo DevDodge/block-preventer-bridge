@@ -13,6 +13,7 @@ class OpenChatRequest(BaseModel):
     recipients: List[str] = Field(..., min_length=1)
     scheduled_at: Optional[datetime] = None
     send_immediately: bool = Field(default=False, description="If True, sends the first recipient's message immediately")
+    profileNum: Optional[str] = Field(default=None, description="Phone number of a specific profile to use. If provided, bypasses distribution and sends all recipients through this profile only.")
 
 
 class ReplyChatRequest(BaseModel):

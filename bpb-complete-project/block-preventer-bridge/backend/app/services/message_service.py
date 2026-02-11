@@ -45,6 +45,7 @@ class MessageService:
             raise ValueError("Package is not active")
         
         recipients = data.get("recipients", [])
+        profile_num = data.get("profileNum")  # Optional: phone number of a specific profile
         
         # Create message record
         message = Message(
@@ -62,9 +63,30 @@ class MessageService:
         self.db.add(message)
         await self.db.flush()
         
-        # Distribute recipients across profiles
-        dist_service = DistributionService(self.db)
-        distribution = await dist_service.distribute(package, recipients)
+        # Check if a specific profile is requested via profileNum
+        if profile_num:
+            # Find the profile by phone number within this package
+            prof_result = await self.db.execute(
+                select(Profile).where(
+                    Profile.package_id == package_id,
+                    Profile.phone_number == profile_num,
+                    Profile.status == "active"
+                )
+            )
+            target_profile = prof_result.scalar_one_or_none()
+            if not target_profile:
+                raise ValueError(f"No active profile found with phone number '{profile_num}' in this package")
+            
+            # Bypass distribution: assign ALL recipients to this specific profile
+            distribution = {str(target_profile.id): recipients}
+            logger.info(
+                f"profileNum={profile_num} specified, bypassing distribution. "
+                f"All {len(recipients)} recipients assigned to profile '{target_profile.name}' ({target_profile.id})"
+            )
+        else:
+            # Normal distribution across profiles
+            dist_service = DistributionService(self.db)
+            distribution = await dist_service.distribute(package, recipients)
         
         message.distribution_result = distribution
         
