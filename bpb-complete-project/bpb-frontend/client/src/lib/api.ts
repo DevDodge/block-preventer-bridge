@@ -107,6 +107,40 @@ export const alertsApi = {
   },
 };
 
+// ========== ZENTRA DIRECT MESSAGES ==========
+export const zentraDirectApi = {
+  /** Send a single image with optional caption */
+  replyImage: (data: {
+    device_uuid: string;
+    api_key: string;
+    chat_id: string;
+    image_url: string;
+    caption?: string;
+  }) =>
+    request<any>("/messages/reply-image", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  /** Send an ordered sequence of text/image/video parts */
+  sendSequence: (data: {
+    device_uuid: string;
+    api_key: string;
+    chat_id: string;
+    parts: Array<{
+      type: "text" | "image" | "video";
+      text?: string;
+      imageLink?: string;
+      videoLink?: string;
+      caption?: string;
+    }>;
+  }) =>
+    request<any>("/messages/send-sequence", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+};
+
 // ========== SYSTEM / SETTINGS ==========
 export const systemApi = {
   health: () => fetch("/health").then((r) => r.json()),
